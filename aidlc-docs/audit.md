@@ -271,3 +271,11 @@
 **Context**: Publish the inception workspace so Linear and Cursor Cloud Agents can use the repository.
 
 ---
+
+## GitFlow
+**Timestamp**: 2026-09-26T05:32:00Z
+**User Input**: "crea para que cumpla con gitflow"
+**AI Response**: "Create develop from main, set it as the GitHub default branch, and document feature, release, and hotfix branches. main stays the production line."
+**Context**: Public repository garestrepop/hy10. Branch model for later Cloud Agent work.
+
+---

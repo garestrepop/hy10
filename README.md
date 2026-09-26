@@ -28,6 +28,18 @@ hy10/
 
 Supabase · Vercel · Railway · GitHub Actions · Telegram Bot API
 
+## Ramas (GitFlow)
+
+| Rama | Uso |
+|------|-----|
+| `main` | Producción. Solo entra lo que ya salió en un `release/*` o un `hotfix/*`. |
+| `develop` | Integración. Rama por defecto. El trabajo nuevo sale de aquí. |
+| `feature/*` | Una historia o una unidad. Sale de `develop` y vuelve a `develop`. |
+| `release/*` | Cierre de una versión. Sale de `develop`, entra a `main` y se devuelve a `develop`. |
+| `hotfix/*` | Corrección sobre producción. Sale de `main`, entra a `main` y se devuelve a `develop`. |
+
+Los Cloud Agents usan `develop` como rama base.
+
 ## Empezar por aquí
 
 1. [`docs/00-overview.md`](docs/00-overview.md) — brief
