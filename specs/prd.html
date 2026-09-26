@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PRD — hy10</title>
+  <style>
+    :root {
+      --bg: #0a0c10;
+      --bg-elev: #11151c;
+      --bg-panel: #161b24;
+      --line: #1e2836;
+      --text: #f2f4f7;
+      --muted: #9aa3b2;
+      --dim: #6b7382;
+      --blue: #3dfffe;
+      --blue-2: #2b7cff;
+      --blue-glow: rgba(61, 255, 254, 0.18);
+      --warn: #ffb020;
+      --ok: #3dff9a;
+      --font-display: "IBM Plex Mono", "SF Mono", ui-monospace, monospace;
+      --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(43, 124, 255, 0.18), transparent 55%),
+        radial-gradient(900px 500px at 90% 0%, rgba(61, 255, 254, 0.10), transparent 50%),
+        linear-gradient(180deg, #07080b 0%, var(--bg) 40%, #080a0e 100%);
+      color: var(--text);
+      font-family: var(--font-body);
+      line-height: 1.55;
+      min-height: 100vh;
+    }
+
+    body::before {
+      content: "";
+      pointer-events: none;
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+      z-index: 0;
+    }
+
+    .wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 48px 24px 96px;
+    }
+
+    .topline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 20px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 28px;
+      font-family: var(--font-display);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--blue);
+      color: var(--blue);
+      padding: 6px 12px;
+      box-shadow: 0 0 0 1px var(--blue-glow), 0 0 24px var(--blue-glow);
+      background: rgba(61, 255, 254, 0.04);
+    }
+
+    .badge::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      background: var(--blue);
+      box-shadow: 0 0 8px var(--blue);
+    }
+
+    header.hero {
+      border: 1px solid var(--line);
+      background: linear-gradient(160deg, var(--bg-panel), var(--bg-elev));
+      padding: 36px 32px;
+      margin-bottom: 36px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    header.hero::after {
+      content: "";
+      position: absolute;
+      right: -40px;
+      top: -40px;
+      width: 180px;
+      height: 180px;
+      border: 1px solid rgba(61, 255, 254, 0.25);
+      transform: rotate(18deg);
+    }
+
+    .eyebrow {
+      font-family: var(--font-display);
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin: 0 0 14px;
+    }
+
+    h1 {
+      font-family: var(--font-display);
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      margin: 0 0 12px;
+      line-height: 1.1;
+    }
+
+    h1 span { color: var(--blue); text-shadow: 0 0 24px var(--blue-glow); }
+
+    .lead {
+      color: var(--muted);
+      font-size: 1.05rem;
+      max-width: 62ch;
+      margin: 0 0 22px;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .meta div {
+      border-left: 2px solid var(--blue-2);
+      padding-left: 12px;
+    }
+
+    .meta dt {
+      font-family: var(--font-display);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    .meta dd {
+      margin: 2px 0 0;
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+
+    nav.toc {
+      border: 1px solid var(--line);
+      background: var(--bg-elev);
+      padding: 20px 22px;
+      margin-bottom: 40px;
+    }
+
+    nav.toc h2 {
+      font-family: var(--font-display);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin: 0 0 12px;
+      font-weight: 500;
+    }
+
+    nav.toc ol {
+      margin: 0;
+      padding-left: 18px;
+      columns: 2;
+      gap: 28px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    nav.toc a {
+      color: var(--muted);
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+    }
+
+    nav.toc a:hover {
+      color: var(--blue);
+      border-bottom-color: var(--blue);
+    }
+
+    @media (max-width: 680px) {
+      nav.toc ol { columns: 1; }
+      header.hero { padding: 28px 20px; }
+    }
+
+    section {
+      margin-bottom: 44px;
+      border-top: 1px solid var(--line);
+      padding-top: 28px;
+    }
+
+    h2 {
+      font-family: var(--font-display);
+      font-size: 1.35rem;
+      margin: 0 0 16px;
+      color: var(--text);
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+    }
+
+    h2 .num {
+      color: var(--blue);
+      font-size: 0.85rem;
+      letter-spacing: 0.08em;
+    }
+
+    h3 {
+      font-size: 1.05rem;
+      margin: 22px 0 10px;
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    p, li { color: var(--muted); }
+    strong { color: var(--text); font-weight: 600; }
+
+    blockquote.jtbd {
+      margin: 16px 0;
+      padding: 16px 18px;
+      border-left: 3px solid var(--blue);
+      background: rgba(43, 124, 255, 0.08);
+      color: var(--text);
+      font-style: italic;
+    }
+
+    .alert {
+      margin: 18px 0;
+      padding: 14px 16px;
+      border: 1px solid rgba(255, 176, 32, 0.45);
+      background: rgba(255, 176, 32, 0.08);
+      color: #ffd89a;
+      font-size: 0.95rem;
+    }
+
+    .alert strong { color: var(--warn); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      margin: 14px 0 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: rgba(43, 124, 255, 0.12);
+      color: var(--blue);
+      font-family: var(--font-display);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+
+    td { color: var(--muted); background: rgba(0,0,0,0.2); }
+    td strong { color: var(--text); }
+
+    .tag-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+
+    .tag {
+      font-family: var(--font-display);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+    }
+
+    .tag.must { border-color: var(--blue); color: var(--blue); }
+    .tag.should { border-color: var(--blue-2); color: #8eb6ff; }
+    .tag.could { border-color: var(--dim); }
+    .tag.wont { border-color: #5a3a3a; color: #c98989; }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+      margin: 14px 0;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      background: var(--bg-elev);
+      padding: 16px;
+    }
+
+    .card h4 {
+      margin: 0 0 8px;
+      font-family: var(--font-display);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--blue);
+      font-weight: 500;
+    }
+
+    .card p { margin: 0; font-size: 0.92rem; }
+
+    ul.clean { padding-left: 18px; }
+    ul.clean li { margin-bottom: 6px; }
+
+    .checklist label {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      margin: 8px 0;
+      color: var(--muted);
+      cursor: default;
+    }
+
+    .checklist input { margin-top: 4px; accent-color: var(--blue); }
+
+    footer {
+      margin-top: 56px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+      font-family: var(--font-display);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--dim);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    code {
+      font-family: var(--font-display);
+      font-size: 0.88em;
+      color: var(--blue);
+      background: rgba(61, 255, 254, 0.06);
+      padding: 1px 6px;
+      border: 1px solid rgba(61, 255, 254, 0.15);
+    }
+
+    pre {
+      background: #06080c;
+      border: 1px solid var(--line);
+      padding: 16px;
+      overflow-x: auto;
+      color: var(--muted);
+      font-family: var(--font-display);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .stack-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .stack-pills span {
+      font-family: var(--font-display);
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      padding: 8px 12px;
+      background: rgba(43, 124, 255, 0.1);
+      border: 1px solid rgba(43, 124, 255, 0.35);
+      color: #b9d2ff;
+    }
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="wrap">
+    <div class="topline">
+      <div class="badge">PRD v0.2 · Decisiones D1–D7</div>
+      <div>2026-09-25 · Single-tenant · No pricing</div>
+    </div>
+
+    <header class="hero">
+      <p class="eyebrow">Product Requirements Document</p>
+      <h1><span>hy10</span> — CRM operativo + agente Telegram</h1>
+      <p class="lead">
+        Sistema propio de un solo negocio: Admin y Staff gestionan servicios y agenda en la web;
+        los clientes reservan, cancelan y reprograman por Telegram con un agente de AI que consulta la API 24/7.
+      </p>
+      <dl class="meta">
+        <div><dt>Tipo</dt><dd>Proyecto a medida</dd></div>
+        <div><dt>Roles</dt><dd>Admin · Staff · Cliente</dd></div>
+        <div><dt>Canales</dt><dd>Web + Telegram</dd></div>
+        <div><dt>Infra</dt><dd>Supabase · Vercel · Railway · GHA</dd></div>
+      </dl>
+    </header>
+
+    <nav class="toc" aria-label="Índice">
+      <h2>Índice</h2>
+      <ol>
+        <li><a href="#s0">0. Conflictos y vacíos</a></li>
+        <li><a href="#s1">1. One-liner + JTBD</a></li>
+        <li><a href="#s2">2. Contexto y problema</a></li>
+        <li><a href="#s3">3. ICP</a></li>
+        <li><a href="#s4">4. UVP</a></li>
+        <li><a href="#s5">5. Casos de uso</a></li>
+        <li><a href="#s6">6. Principios de diseño</a></li>
+        <li><a href="#s7">7. User journeys</a></li>
+        <li><a href="#s8">8. MVP MoSCoW</a></li>
+        <li><a href="#s9">9. Spec funcional</a></li>
+        <li><a href="#s10">10. Métricas</a></li>
+        <li><a href="#s11">11. Eval del agente</a></li>
+        <li><a href="#s12">12. Riesgos</a></li>
+        <li><a href="#s13">13. Plan 30/60/90</a></li>
+      </ol>
+    </nav>
+
+    <section id="s0">
+      <h2><span class="num">00</span> Decisiones cerradas (D1–D7)</h2>
+      <p>Detalle completo en <code>docs/01-decisions.md</code>.</p>
+      <table>
+        <thead>
+          <tr><th>#</th><th>Tema</th><th>Decisión</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>D1</td><td>Vertical</td><td>Marca/producto <strong>hy10</strong></td></tr>
+          <tr><td>D2</td><td>Cliente</td><td>Identidad <strong>Telegram</strong> (<code>telegram_user_id</code>)</td></tr>
+          <tr><td>D3</td><td>Cancel / reprogram</td><td>Config <strong>global</strong> + override <strong>por servicio</strong></td></tr>
+          <tr><td>D4</td><td>Staff</td><td><strong>Ambas:</strong> elegir o auto-asignar</td></tr>
+          <tr><td>D5</td><td>Handoff</td><td>Solo si el agente <strong>no puede responder</strong> (Must)</td></tr>
+          <tr><td>D6</td><td>LLM</td><td>Proveedor en módulo <strong>Configuración</strong></td></tr>
+          <tr><td>D7</td><td>Build</td><td>Greenfield UI; reuso HiTurno selectivo; <strong>no</strong> multi-tenant ni pricing</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="s1">
+      <h2><span class="num">01</span> One-liner + JTBD</h2>
+      <p><strong>hy10</strong> es el sistema operativo de citas de un solo negocio: el equipo administra servicios, staff y agendas en la web; los clientes gestionan reservas por Telegram con un agente AI conectado a la API.</p>
+      <blockquote class="jtbd">
+        Cuando un cliente quiere un turno, quiero consultar disponibilidad y reservar (o cambiar/cancelar) por Telegram sin esperar horario de oficina, para no perder la cita ni saturar al staff.
+      </blockquote>
+      <h3>Misión</h3>
+      <p>Una sola fuente de verdad para servicios, staff y agenda; un canal conversacional donde el cliente se autosirve; un agente que ejecuta acciones reales vía API.</p>
+    </section>
+
+    <section id="s2">
+      <h2><span class="num">02</span> Contexto y problema</h2>
+      <div class="grid-2">
+        <div class="card">
+          <h4>Admin / Staff</h4>
+          <p>Agenda dispersa, conflictos de horario, difícil saber quién presta qué servicio.</p>
+        </div>
+        <div class="card">
+          <h4>Cliente</h4>
+          <p>Escribe, espera, re-explica. Fuera de horario se pierden reservas.</p>
+        </div>
+      </div>
+      <h3>Alternativas insuficientes</h3>
+      <table>
+        <thead><tr><th>Alternativa</th><th>Por qué no alcanza</th></tr></thead>
+        <tbody>
+          <tr><td>WhatsApp / Excel manual</td><td>No escala; errores; sin 24/7</td></tr>
+          <tr><td>Calendly / Google Calendar</td><td>Sin CRM staff↔servicios ni bot del negocio</td></tr>
+          <tr><td>SaaS multi-tenant</td><td>Overkill; no es sistema propio</td></tr>
+          <tr><td>Bot sin backend</td><td>Sin agenda real ni reglas</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="s3">
+      <h2><span class="num">03</span> ICP detallado</h2>
+      <p>Hipótesis de trabajo (números TBD con el cliente): un establecimiento, 1–20 staff, zona horaria fija, servicios con duración.</p>
+      <table>
+        <thead><tr><th>Persona</th><th>Necesidad</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Dueño / Admin</strong></td><td>Configurar servicios y staff; confiar en el agente</td></tr>
+          <tr><td><strong>Staff</strong></td><td>Ver y gestionar su agenda</td></tr>
+          <tr><td><strong>Cliente</strong></td><td>Reservar / cancelar / reprogramar por Telegram</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="s4">
+      <h2><span class="num">04</span> UVP y diferenciadores</h2>
+      <ul class="clean">
+        <li><strong>Single-tenant by design</strong> — sin complejidad multi-tenant.</li>
+        <li><strong>Agente con tools reales</strong> — reserva/cancela/reprograma vía API.</li>
+        <li><strong>Núcleo de dominio</strong> — staff ↔ servicios ↔ agenda.</li>
+        <li><strong>Canal cliente = Telegram</strong> — donde ya conversan.</li>
+      </ul>
+      <div class="stack-pills">
+        <span>Supabase</span><span>Vercel</span><span>Railway</span><span>GitHub Actions</span><span>Telegram Bot</span>
+      </div>
+    </section>
+
+    <section id="s5">
+      <h2><span class="num">05</span> Casos de uso top 5</h2>
+      <table>
+        <thead><tr><th>ID</th><th>Caso</th><th>KPI</th></tr></thead>
+        <tbody>
+          <tr><td>CU-01</td><td>Admin configura catálogo de servicios y asocia staff</td><td>% servicios con ≥1 staff</td></tr>
+          <tr><td>CU-02</td><td>Staff gestiona su agenda</td><td>Conflictos / semana</td></tr>
+          <tr><td>CU-03</td><td>Cliente reserva por Telegram</td><td>Tasa completar reserva</td></tr>
+          <tr><td>CU-04</td><td>Cliente cancela</td><td>% cancel auto</td></tr>
+          <tr><td>CU-05</td><td>Cliente reprograma</td><td>Reprogramaciones sin conflicto</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="s6">
+      <h2><span class="num">06</span> Principios de diseño</h2>
+      <table>
+        <thead><tr><th>Principio</th><th>Prohibido</th></tr></thead>
+        <tbody>
+          <tr><td><strong>P1</strong> Una sola fuente de verdad</td><td>Agendar solo en el chat sin persistir</td></tr>
+          <tr><td><strong>P2</strong> El agente no inventa cupos</td><td>Alucinar horarios</td></tr>
+          <tr><td><strong>P3</strong> Confirmación explícita</td><td>Mutar estado con mensaje ambiguo</td></tr>
+          <tr><td><strong>P4</strong> Roles claros</td><td>Cliente con panel admin</td></tr>
+          <tr><td><strong>P5</strong> Simple &gt; SaaS</td><td>Multitenancy, planes, billing</td></tr>
+          <tr><td><strong>P6</strong> Trust del staff</td><td>Caja negra sin logs</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="s7">
+      <h2><span class="num">07</span> User journeys</h2>
+      <h3>Cliente (happy path)</h3>
+      <p>Mensaje → listar servicios → slots reales vía API → confirmación → <code>POST /reservations</code> → confirmación Telegram.</p>
+      <h3>Admin (happy path)</h3>
+      <p>Login (password/Google) → dashboard → CRUD servicios → alta staff + asociación → revisión de reservas.</p>
+      <h3>Edges</h3>
+      <ul class="clean">
+        <li><strong>Abandono:</strong> sesión expira; no se crea reserva. Si el slot se ocupa, API rechaza y el agente ofrece alternativas.</li>
+        <li><strong>Escalado:</strong> frustración / fuera de política → marcar <code>escalated</code> y notificar humano (Should).</li>
+      </ul>
+    </section>
+
+    <section id="s8">
+      <h2><span class="num">08</span> MVP Scope (MoSCoW)</h2>
+      <div class="tag-row">
+        <span class="tag must">Must</span>
+        <span class="tag should">Should</span>
+        <span class="tag could">Could</span>
+        <span class="tag wont">Won't</span>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h4>Must</h4>
+          <p>Auth Supabase; Config global + políticas por servicio; staff N:M; agenda; reservas (elegir staff o auto); bot + agente; handoff si no puede; invitaciones; notificaciones; UI nueva; API; GHA.</p>
+        </div>
+        <div class="card">
+          <h4>Should</h4>
+          <p>Historial de conversaciones; bloqueos de agenda; emails además de Telegram/in-app.</p>
+        </div>
+        <div class="card">
+          <h4>Could</h4>
+          <p>Recordatorios; reportes; multi-idioma; menú explícito “humano”; WhatsApp post-MVP.</p>
+        </div>
+        <div class="card">
+          <h4>Won't</h4>
+          <p>Multitenancy; pricing; web clientes; pagos; app nativa; CRM ventas; UI HiTurno tal cual.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="s9">
+      <h2><span class="num">09</span> Especificación funcional</h2>
+      <h3>Módulos</h3>
+      <table>
+        <thead><tr><th>Módulo</th><th>Features</th><th>Roles</th></tr></thead>
+        <tbody>
+          <tr><td>Auth</td><td>Password, Google, recovery</td><td>Admin, Staff</td></tr>
+          <tr><td>Servicios</td><td>CRUD, duración, activo</td><td>Admin</td></tr>
+          <tr><td>Staff</td><td>Alta + N:M servicios</td><td>Admin</td></tr>
+          <tr><td>Agenda</td><td>Disponibilidad y excepciones</td><td>Admin, Staff</td></tr>
+          <tr><td>Reservas</td><td>Crear, cancelar, reprogramar</td><td>Todos (vía canal)</td></tr>
+          <tr><td>Telegram + Agente</td><td>Tools API + confirmaciones</td><td>Cliente</td></tr>
+        </tbody>
+      </table>
+      <h3>Matriz de permisos</h3>
+      <table>
+        <thead><tr><th>Recurso</th><th>Admin</th><th>Staff</th><th>Cliente</th></tr></thead>
+        <tbody>
+          <tr><td>Servicios</td><td>CRUD</td><td>Lectura</td><td>Lectura vía bot</td></tr>
+          <tr><td>Staff</td><td>CRUD</td><td>Propio</td><td>—</td></tr>
+          <tr><td>Agenda</td><td>Todas</td><td>Propia</td><td>—</td></tr>
+          <tr><td>Reservas</td><td>Todas</td><td>Asignadas</td><td>Propias vía bot</td></tr>
+        </tbody>
+      </table>
+      <div class="alert"><strong>Decisión crítica:</strong> disponibilidad por <strong>staff</strong> (filtrada por servicios que presta), no por servicio genérico.</div>
+      <h3>Entidades mínimas</h3>
+<pre>users · services · staff_profiles · staff_services
+availability_rules · availability_exceptions
+clients · reservations · conversation_sessions · agent_tool_logs</pre>
+    </section>
+
+    <section id="s10">
+      <h2><span class="num">10</span> Métricas de éxito</h2>
+      <table>
+        <thead><tr><th>Tipo</th><th>Métrica</th><th>Meta piloto</th></tr></thead>
+        <tbody>
+          <tr><td>North Star</td><td>Reservas vía Telegram / semana</td><td>Definir con negocio</td></tr>
+          <tr><td>Calidad agente</td><td>% acciones correctas sin humano</td><td>≥ 80%</td></tr>
+          <tr><td>Fiabilidad</td><td>Doble bookings</td><td><strong>0</strong></td></tr>
+          <tr><td>Operación</td><td>% cancel/reprogram auto</td><td>≥ 70%</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="s11">
+      <h2><span class="num">11</span> Evaluación del agente</h2>
+      <ul class="clean">
+        <li>Dataset: 50–100 sintéticos + 20 reales del piloto.</li>
+        <li>Pass duro: no inventar cupos; confirmar antes de mutar; respetar políticas.</li>
+        <li>Red-team: prompt injection, reservar a nombre de otro, flood, slots pasados.</li>
+        <li>Principio: la <strong>API es la autoridad</strong>; el LLM no bypasea reglas server-side.</li>
+      </ul>
+    </section>
+
+    <section id="s12">
+      <h2><span class="num">12</span> Riesgos y mitigaciones</h2>
+      <table>
+        <thead><tr><th>Riesgo</th><th>Impacto</th><th>Mitigación</th></tr></thead>
+        <tbody>
+          <tr><td>Alucinación de horarios</td><td>Alto</td><td>Tools + confirmación + validación API</td></tr>
+          <tr><td>Doble booking</td><td>Alto</td><td>Transacción / lock al crear</td></tr>
+          <tr><td>Prompt injection</td><td>Alto</td><td>Allowlist de tools; authz en servidor</td></tr>
+          <tr><td>Scope creep multi-tenant</td><td>Alto</td><td>Constitución hy10: single-tenant only</td></tr>
+          <tr><td>Expectativa CRM de ventas</td><td>Medio</td><td>Alinear contrato al alcance de citas</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="s13">
+      <h2><span class="num">13</span> Plan 30 / 60 / 90</h2>
+      <div class="grid-2">
+        <div class="card">
+          <h4>0–30 · Fundación</h4>
+          <p>Repo, GHA, Auth, modelo dominio, API CRUD + availability, web mínima, bot listando servicios.</p>
+        </div>
+        <div class="card">
+          <h4>31–60 · Agente</h4>
+          <p>Tools de reserva/cancel/reprogram; UI staff usable; eval v1; piloto con 0 double-bookings.</p>
+        </div>
+        <div class="card">
+          <h4>61–90 · Confianza</h4>
+          <p>Handoff, políticas afinadas, hardening, red-team, docs operativas; ≥80% sin humano.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="open">
+      <h2><span class="num">OK</span> Decisiones D1–D7</h2>
+      <div class="checklist">
+        <label><input type="checkbox" checked disabled /> D1 Vertical = hy10</label>
+        <label><input type="checkbox" checked disabled /> D2 Cliente = Telegram</label>
+        <label><input type="checkbox" checked disabled /> D3 Políticas = config global + por servicio</label>
+        <label><input type="checkbox" checked disabled /> D4 Staff = elegir o auto-asignar</label>
+        <label><input type="checkbox" checked disabled /> D5 Handoff solo si el agente no puede</label>
+        <label><input type="checkbox" checked disabled /> D6 LLM en Configuración</label>
+        <label><input type="checkbox" checked disabled /> D7 Greenfield UI + reuso selectivo HiTurno</label>
+      </div>
+      <p style="margin-top:16px;color:var(--dim);font-size:0.9rem;">Micro-pendientes: algoritmo auto-asignación, catálogo de keys de config, proveedores LLM v1, branding, retención de datos.</p>
+    </section>
+
+    <footer>
+      <span>hy10 · specs/prd.html</span>
+      <span>Fuente: docs/00-overview.md · Markdown gemelo: specs/prd.md</span>
+    </footer>
+  </div>
+</body>
+</html>
