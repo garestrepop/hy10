@@ -12,6 +12,7 @@
   "coverageDirectory": "./coverage",
   "testEnvironment": "node",
   "transformIgnorePatterns": [
-    "node_modules/(?!(@nestjs/jwt|@nestjs/passport|jsonwebtoken)/)"
-  ]
+    "node_modules/(?!(@nestjs/jwt|@nestjs/passport|@nestjs/throttler|jsonwebtoken|passport|passport-jwt|passport-google-oauth20)/)"
+  ],
+  "modulePathIgnorePatterns": ["<rootDir>/dist/"]
 }
