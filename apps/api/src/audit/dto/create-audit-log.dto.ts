@@ -37,11 +37,11 @@ export class CreateAuditLogDto {
 
   @IsOptional()
   @IsObject()
-  previous_value?: Record<string, any>;
+  previous_value?: Record<string, any> | null;
 
   @IsOptional()
   @IsObject()
-  new_value?: Record<string, any>;
+  new_value?: Record<string, any> | null;
 
   @IsOptional()
   @IsString()
