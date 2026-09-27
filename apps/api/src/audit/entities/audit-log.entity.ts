@@ -86,10 +86,10 @@ export class AuditLog {
   entity_id: string;
 
   @Column({ type: 'jsonb', nullable: true })
-  previous_value: Record<string, any>;
+  previous_value: Record<string, any> | null;
 
   @Column({ type: 'jsonb', nullable: true })
-  new_value: Record<string, any>;
+  new_value: Record<string, any> | null;
 
   @Column({ type: 'text', nullable: true })
   metadata: string;
