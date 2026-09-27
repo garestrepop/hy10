@@ -10,14 +10,14 @@ import {
 import { Account } from './account.entity';
 
 @Entity('refresh_tokens')
-@Index(['token'], { unique: true })
+@Index(['token_hash'], { unique: true })
 @Index(['account_id', 'is_revoked'])
 export class RefreshToken {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column({ unique: true })
-  token: string;
+  token_hash: string;
 
   @Column()
   account_id: string;

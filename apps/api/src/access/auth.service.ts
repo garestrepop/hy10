@@ -8,6 +8,7 @@ import { Repository, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
+import * as bcrypt from 'bcrypt';
 import { Account } from './entities/account.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { AuditService } from '../audit/audit.service';
@@ -44,21 +45,31 @@ export class AuthService {
       throw new NotFoundException('Account not found');
     }
 
-    const token = await this.refreshTokenRepository.findOne({
+    // Find all non-revoked tokens for this account
+    const tokens = await this.refreshTokenRepository.find({
       where: {
         account_id: accountId,
-        token: refreshToken,
         is_revoked: false,
       },
     });
 
-    if (!token) {
+    // Compare the provided token with hashed tokens using timing-safe comparison
+    let matchedToken: RefreshToken | null = null;
+    for (const token of tokens) {
+      const isMatch = await bcrypt.compare(refreshToken, token.token_hash);
+      if (isMatch) {
+        matchedToken = token;
+        break;
+      }
+    }
+
+    if (!matchedToken) {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    token.is_revoked = true;
-    token.revoked_at = new Date();
-    await this.refreshTokenRepository.save(token);
+    matchedToken.is_revoked = true;
+    matchedToken.revoked_at = new Date();
+    await this.refreshTokenRepository.save(matchedToken);
 
     await this.auditService.record({
       action: AuditAction.LOGOUT,
@@ -67,7 +78,7 @@ export class AuthService {
       actor_email: account.email,
       actor_role: account.role,
       entity_type: 'refresh_token',
-      entity_id: token.id,
+      entity_id: matchedToken.id,
       ip_address: ipAddress,
       metadata: JSON.stringify({ logout_type: 'single_device' }),
     });
@@ -118,28 +129,38 @@ export class AuthService {
   }
 
   async refresh(oldRefreshToken: string, ipAddress?: string): Promise<Session> {
-    const token = await this.refreshTokenRepository.findOne({
+    // Get all non-revoked, non-expired tokens
+    const tokens = await this.refreshTokenRepository.find({
       where: {
-        token: oldRefreshToken,
         is_revoked: false,
         expires_at: MoreThan(new Date()),
       },
       relations: ['account'],
     });
 
-    if (!token) {
+    // Find matching token using timing-safe comparison
+    let matchedToken: RefreshToken | null = null;
+    for (const token of tokens) {
+      const isMatch = await bcrypt.compare(oldRefreshToken, token.token_hash);
+      if (isMatch) {
+        matchedToken = token;
+        break;
+      }
+    }
+
+    if (!matchedToken) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    const account = token.account;
+    const account = matchedToken.account;
 
     if (!account.is_active) {
       throw new UnauthorizedException('Account is not active');
     }
 
-    token.is_revoked = true;
-    token.revoked_at = new Date();
-    await this.refreshTokenRepository.save(token);
+    matchedToken.is_revoked = true;
+    matchedToken.revoked_at = new Date();
+    await this.refreshTokenRepository.save(matchedToken);
 
     return this.generateSession(account, ipAddress);
   }
@@ -162,14 +183,19 @@ export class AuthService {
       expiresIn: accessTokenExpiresIn,
     });
 
+    // Generate random refresh token
     const refreshTokenValue = crypto.randomBytes(64).toString('hex');
+    
+    // Hash the token before storing (bcrypt with 10 rounds)
+    const tokenHash = await bcrypt.hash(refreshTokenValue, 10);
+    
     const refreshTokenExpiry = new Date();
     refreshTokenExpiry.setSeconds(
       refreshTokenExpiry.getSeconds() + refreshTokenExpiresIn,
     );
 
     const refreshToken = this.refreshTokenRepository.create({
-      token: refreshTokenValue,
+      token_hash: tokenHash,
       account_id: account.id,
       expires_at: refreshTokenExpiry,
       ip_address: ipAddress,
@@ -178,6 +204,7 @@ export class AuthService {
 
     await this.refreshTokenRepository.save(refreshToken);
 
+    // Return the plaintext token to the client (only time it's visible)
     return {
       accessToken,
       refreshToken: refreshTokenValue,
@@ -186,19 +213,22 @@ export class AuthService {
   }
 
   async validateRefreshToken(refreshToken: string): Promise<Account | null> {
-    const token = await this.refreshTokenRepository.findOne({
+    const tokens = await this.refreshTokenRepository.find({
       where: {
-        token: refreshToken,
         is_revoked: false,
         expires_at: MoreThan(new Date()),
       },
       relations: ['account'],
     });
 
-    if (!token || !token.account.is_active) {
-      return null;
+    // Find matching token using timing-safe comparison
+    for (const token of tokens) {
+      const isMatch = await bcrypt.compare(refreshToken, token.token_hash);
+      if (isMatch && token.account.is_active) {
+        return token.account;
+      }
     }
 
-    return token.account;
+    return null;
   }
 }

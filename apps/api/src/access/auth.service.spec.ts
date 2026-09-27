@@ -4,11 +4,15 @@ import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException, NotFoundException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { Account, AccountRole, AuthProvider } from './entities/account.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
+
+// Mock bcrypt
+jest.mock('bcrypt');
 
 describe('AuthService - Logout', () => {
   let service: AuthService;
@@ -35,7 +39,7 @@ describe('AuthService - Logout', () => {
 
   const mockRefreshToken = {
     id: 'test-token-id',
-    token: 'test-refresh-token',
+    token_hash: '$2b$10$hashedtoken',
     account_id: 'test-account-id',
     account: mockAccount,
     expires_at: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
@@ -100,25 +104,30 @@ describe('AuthService - Logout', () => {
     it('should successfully logout from current device', async () => {
       jest.spyOn(accountRepository, 'findOne').mockResolvedValue(mockAccount);
       jest
-        .spyOn(refreshTokenRepository, 'findOne')
-        .mockResolvedValue(mockRefreshToken);
+        .spyOn(refreshTokenRepository, 'find')
+        .mockResolvedValue([mockRefreshToken]);
+      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
       jest
         .spyOn(refreshTokenRepository, 'save')
         .mockResolvedValue({ ...mockRefreshToken, is_revoked: true });
 
       await service.logout(
         mockAccount.id,
-        mockRefreshToken.token,
+        'test-refresh-token',
         '127.0.0.1',
       );
 
-      expect(refreshTokenRepository.findOne).toHaveBeenCalledWith({
+      expect(refreshTokenRepository.find).toHaveBeenCalledWith({
         where: {
           account_id: mockAccount.id,
-          token: mockRefreshToken.token,
           is_revoked: false,
         },
       });
+
+      expect(bcrypt.compare).toHaveBeenCalledWith(
+        'test-refresh-token',
+        mockRefreshToken.token_hash,
+      );
 
       expect(refreshTokenRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -146,19 +155,20 @@ describe('AuthService - Logout', () => {
 
     it('should throw UnauthorizedException if refresh token is invalid', async () => {
       jest.spyOn(accountRepository, 'findOne').mockResolvedValue(mockAccount);
-      jest.spyOn(refreshTokenRepository, 'findOne').mockResolvedValue(null);
+      jest.spyOn(refreshTokenRepository, 'find').mockResolvedValue([mockRefreshToken]);
+      jest.spyOn(bcrypt, 'compare').mockResolvedValue(false as never);
 
       await expect(
         service.logout(mockAccount.id, 'invalid-token', '127.0.0.1'),
       ).rejects.toThrow(UnauthorizedException);
     });
 
-    it('should throw UnauthorizedException if refresh token is already revoked', async () => {
+    it('should throw UnauthorizedException if no tokens exist', async () => {
       jest.spyOn(accountRepository, 'findOne').mockResolvedValue(mockAccount);
-      jest.spyOn(refreshTokenRepository, 'findOne').mockResolvedValue(null);
+      jest.spyOn(refreshTokenRepository, 'find').mockResolvedValue([]);
 
       await expect(
-        service.logout(mockAccount.id, mockRefreshToken.token, '127.0.0.1'),
+        service.logout(mockAccount.id, 'some-token', '127.0.0.1'),
       ).rejects.toThrow(UnauthorizedException);
     });
   });
@@ -166,9 +176,9 @@ describe('AuthService - Logout', () => {
   describe('logoutAll', () => {
     it('should successfully logout from all devices', async () => {
       const mockTokens = [
-        { ...mockRefreshToken, id: 'token-1', token: 'token-1' },
-        { ...mockRefreshToken, id: 'token-2', token: 'token-2' },
-        { ...mockRefreshToken, id: 'token-3', token: 'token-3' },
+        { ...mockRefreshToken, id: 'token-1', token_hash: 'hash-1' },
+        { ...mockRefreshToken, id: 'token-2', token_hash: 'hash-2' },
+        { ...mockRefreshToken, id: 'token-3', token_hash: 'hash-3' },
       ];
 
       jest.spyOn(accountRepository, 'findOne').mockResolvedValue(mockAccount);

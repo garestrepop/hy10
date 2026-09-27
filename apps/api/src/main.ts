@@ -26,9 +26,25 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
+  // Configure CORS - support multiple origins
+  const allowedOrigins = process.env.WEB_ORIGIN 
+    ? process.env.WEB_ORIGIN.split(',').map(origin => origin.trim())
+    : ['http://localhost:3000'];
+
   app.enableCors({
-    origin: process.env.WEB_ORIGIN || 'http://localhost:3000',
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g., mobile apps, Postman)
+      if (!origin) return callback(null, true);
+      
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
+      }
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Refresh-Token'],
   });
 
   const port = process.env.PORT || 3001;

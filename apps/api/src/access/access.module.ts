@@ -17,12 +17,29 @@ import { AuditModule } from '../audit/audit.module';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET') || 'dev-secret-change-in-production',
-        signOptions: {
-          expiresIn: '15m',
-        },
-      }),
+      useFactory: async (configService: ConfigService) => {
+        const secret = configService.get<string>('JWT_SECRET');
+        
+        if (!secret) {
+          throw new Error(
+            'JWT_SECRET is not defined. Set JWT_SECRET environment variable.',
+          );
+        }
+
+        if (secret.length < 64) {
+          throw new Error(
+            'JWT_SECRET must be at least 64 characters long for security. ' +
+            'Generate one with: openssl rand -hex 64',
+          );
+        }
+
+        return {
+          secret,
+          signOptions: {
+            expiresIn: '15m',
+          },
+        };
+      },
     }),
     AuditModule,
   ],

@@ -98,7 +98,7 @@ export class CreateAuthTables1727410000000 implements MigrationInterface {
             default: 'uuid_generate_v4()',
           },
           {
-            name: 'token',
+            name: 'token_hash',
             type: 'varchar',
             isUnique: true,
           },
@@ -143,8 +143,8 @@ export class CreateAuthTables1727410000000 implements MigrationInterface {
     await queryRunner.createIndex(
       'refresh_tokens',
       new TableIndex({
-        name: 'IDX_refresh_tokens_token',
-        columnNames: ['token'],
+        name: 'IDX_refresh_tokens_token_hash',
+        columnNames: ['token_hash'],
         isUnique: true,
       }),
     );
