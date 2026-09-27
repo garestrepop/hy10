@@ -53,9 +53,18 @@ export class AuditService {
       const sanitizedNew = this.sanitizeData(dto.new_value);
 
       const auditLog = this.auditLogRepository.create({
-        ...dto,
-        previous_value: sanitizedPrevious,
-        new_value: sanitizedNew,
+        action: dto.action,
+        actor_type: dto.actor_type,
+        actor_id: dto.actor_id,
+        actor_email: dto.actor_email,
+        actor_role: dto.actor_role,
+        entity_type: dto.entity_type,
+        entity_id: dto.entity_id,
+        previous_value: sanitizedPrevious as any,
+        new_value: sanitizedNew as any,
+        metadata: dto.metadata,
+        ip_address: dto.ip_address,
+        user_agent: dto.user_agent,
       });
 
       await this.auditLogRepository.save(auditLog);

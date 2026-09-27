@@ -140,7 +140,11 @@ export class AuthService {
 
     this.logger.log(`Token refreshed for user: ${user.email}`);
 
-    return this.generateAuthResponse(user, tokenRecord.device_info, tokenRecord.ip_address);
+    return this.generateAuthResponse(
+      user, 
+      tokenRecord.device_info || undefined, 
+      tokenRecord.ip_address || undefined
+    );
   }
 
   async logout(userId: string, refreshToken: string): Promise<void> {
