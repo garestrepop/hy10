@@ -170,11 +170,13 @@ export class CreateAuthTables1727410000000 implements MigrationInterface {
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     const table = await queryRunner.getTable('refresh_tokens');
-    const foreignKey = table.foreignKeys.find(
-      (fk) => fk.columnNames.indexOf('account_id') !== -1,
-    );
-    if (foreignKey) {
-      await queryRunner.dropForeignKey('refresh_tokens', foreignKey);
+    if (table) {
+      const foreignKey = table.foreignKeys.find(
+        (fk) => fk.columnNames.indexOf('account_id') !== -1,
+      );
+      if (foreignKey) {
+        await queryRunner.dropForeignKey('refresh_tokens', foreignKey);
+      }
     }
 
     await queryRunner.dropTable('refresh_tokens');
