@@ -46,7 +46,7 @@ describe('AuditService', () => {
         actor_role: 'admin',
         entity_type: 'reservation',
         entity_id: 'res-456',
-        previous_value: null,
+        previous_value: undefined,
         new_value: {
           service: 'Haircut',
           start_time: '2026-09-27T10:00:00Z',
