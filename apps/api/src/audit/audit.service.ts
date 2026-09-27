@@ -48,17 +48,25 @@ export class AuditService {
    */
   async record(dto: CreateAuditLogDto): Promise<void> {
     try {
-      // Sanitize sensitive data
       const sanitizedPrevious = this.sanitizeData(dto.previous_value);
       const sanitizedNew = this.sanitizeData(dto.new_value);
 
-      const auditLog = this.auditLogRepository.create({
-        ...dto,
-        previous_value: sanitizedPrevious,
-        new_value: sanitizedNew,
-      });
+      const auditLog: Partial<AuditLog> = {
+        action: dto.action,
+        actor_type: dto.actor_type,
+        actor_id: dto.actor_id,
+        actor_email: dto.actor_email,
+        actor_role: dto.actor_role,
+        entity_type: dto.entity_type,
+        entity_id: dto.entity_id,
+        previous_value: sanitizedPrevious || undefined,
+        new_value: sanitizedNew || undefined,
+        metadata: dto.metadata,
+        ip_address: dto.ip_address,
+        user_agent: dto.user_agent,
+      };
 
-      await this.auditLogRepository.save(auditLog);
+      await this.auditLogRepository.save(auditLog as any);
     } catch (error) {
       // Per FR-56: log the failure but don't throw
       this.logger.error(
