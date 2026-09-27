@@ -52,6 +52,7 @@ export class AuditService {
       const sanitizedPrevious = this.sanitizeData(dto.previous_value);
       const sanitizedNew = this.sanitizeData(dto.new_value);
 
+<<<<<<< HEAD
       const auditLog: Partial<AuditLog> = {
         action: dto.action,
         actor_type: dto.actor_type,
@@ -66,6 +67,22 @@ export class AuditService {
         ip_address: dto.ip_address ?? undefined,
         user_agent: dto.user_agent ?? undefined,
       };
+=======
+      const auditLog = this.auditLogRepository.create({
+        action: dto.action,
+        actor_type: dto.actor_type,
+        actor_id: dto.actor_id,
+        actor_email: dto.actor_email,
+        actor_role: dto.actor_role,
+        entity_type: dto.entity_type,
+        entity_id: dto.entity_id,
+        previous_value: sanitizedPrevious,
+        new_value: sanitizedNew,
+        metadata: dto.metadata,
+        ip_address: dto.ip_address,
+        user_agent: dto.user_agent,
+      });
+>>>>>>> origin/develop
 
       await this.auditLogRepository.save(auditLog);
     } catch (error) {
