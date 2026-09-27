@@ -18,6 +18,8 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 
+import { GoogleProfile } from './interfaces/google-profile.interface';
+
 const COMMON_LEAKED_PASSWORDS = new Set([
   '12345678',
   'password',
@@ -319,7 +321,7 @@ export class AuthService {
     });
   }
 
-  async findOrCreateGoogleUser(profile: any): Promise<User> {
+  async findOrCreateGoogleUser(profile: GoogleProfile): Promise<User> {
     const email = profile.emails[0].value.toLowerCase();
     
     let user = await this.userRepository.findOne({

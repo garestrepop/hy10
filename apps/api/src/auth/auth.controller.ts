@@ -12,6 +12,7 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
+import { User } from './entities/user.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -20,7 +21,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
-import { CurrentUser } from './decorators/current-user.decorator';
+import { CurrentUser, CurrentUserData } from './decorators/current-user.decorator';
 import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Authentication')
@@ -73,7 +74,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Google OAuth callback' })
   @ApiResponse({ status: 302, description: 'Redirect to client with tokens' })
   async googleAuthCallback(@Req() req: Request, @Res() res: Response) {
-    const user = req.user as any;
+    const user = req.user as unknown as User;
     const authResponse = await this.authService.generateAuthResponse(user);
     
     const webOrigin = process.env.WEB_ORIGIN || 'http://localhost:3000';
@@ -158,7 +159,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Get current user information' })
   @ApiResponse({ status: 200, description: 'Current user information' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async getCurrentUser(@CurrentUser() user: any) {
+  async getCurrentUser(@CurrentUser() user: CurrentUserData) {
     return user;
   }
 }

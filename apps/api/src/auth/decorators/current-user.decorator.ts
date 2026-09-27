@@ -7,10 +7,10 @@ export interface CurrentUserData {
 }
 
 export const CurrentUser = createParamDecorator(
-  (data: keyof CurrentUserData | undefined, ctx: ExecutionContext) => {
+  (data: keyof CurrentUserData | undefined, ctx: ExecutionContext): CurrentUserData | string | undefined => {
     const request = ctx.switchToHttp().getRequest();
-    const user = request.user;
+    const user: CurrentUserData | undefined = request.user;
 
-    return data ? user?.[data] : user;
+    return data && user ? user[data] : user;
   },
 );
