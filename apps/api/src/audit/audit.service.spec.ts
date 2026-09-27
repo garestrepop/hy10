@@ -10,7 +10,7 @@ describe('AuditService', () => {
   let repository: Repository<AuditLog>;
 
   const mockRepository = {
-    create: jest.fn(),
+    create: jest.fn((dto) => dto),
     save: jest.fn(),
     findAndCount: jest.fn(),
   };
