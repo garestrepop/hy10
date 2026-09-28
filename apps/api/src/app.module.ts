@@ -5,6 +5,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { AuditModule } from './audit/audit.module';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
+import { AccessModule } from './access/access.module';
 import { SettingsModule } from './settings/settings.module';
 
 @Module({
@@ -30,6 +31,7 @@ import { SettingsModule } from './settings/settings.module';
       migrationsRun: false,
     }),
     AuthModule,
+    AccessModule,
     AuditModule,
     HealthModule,
     SettingsModule,

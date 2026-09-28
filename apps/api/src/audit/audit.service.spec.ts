@@ -10,7 +10,7 @@ describe('AuditService', () => {
   let repository: Repository<AuditLog>;
 
   const mockRepository = {
-    create: jest.fn(),
+    create: jest.fn((dto) => dto),
     save: jest.fn(),
     findAndCount: jest.fn(),
   };
@@ -53,18 +53,16 @@ describe('AuditService', () => {
         },
       };
 
-      mockRepository.create.mockReturnValue(dto);
       mockRepository.save.mockResolvedValue(dto);
 
       await service.record(dto);
 
-      expect(mockRepository.create).toHaveBeenCalledWith(
+      expect(mockRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
           action: AuditAction.RESERVATION_CREATED,
           actor_type: ActorType.USER,
         }),
       );
-      expect(mockRepository.save).toHaveBeenCalled();
     });
 
     it('should redact sensitive fields from audit data', async () => {
@@ -84,12 +82,11 @@ describe('AuditService', () => {
         },
       };
 
-      mockRepository.create.mockImplementation((data) => data);
       mockRepository.save.mockResolvedValue({} as AuditLog);
 
       await service.record(dto);
 
-      const savedData = mockRepository.create.mock.calls[0][0];
+      const savedData = mockRepository.save.mock.calls[0][0];
       expect(savedData.previous_value.api_key).toBe('[REDACTED]');
       expect(savedData.previous_value.bot_token).toBe('[REDACTED]');
       expect(savedData.previous_value.normal_field).toBe('visible');
@@ -105,7 +102,6 @@ describe('AuditService', () => {
         actor_id: 'user-123',
       };
 
-      mockRepository.create.mockReturnValue(dto);
       mockRepository.save.mockRejectedValue(new Error('Database error'));
 
       await expect(service.record(dto)).resolves.not.toThrow();
