@@ -1,20 +1,27 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { AccessPrincipal } from '../access/access-token';
 import { AuditService } from '../audit/audit.service';
 import { ActorType, AuditAction } from '../audit/entities/audit-log.entity';
+import { User, UserRole } from '../auth/entities/user.entity';
 import { SettingsService } from '../settings/settings.service';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { ResolvedPolicyDto, ServiceResponseDto } from './dto/service-response.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
+import { AssociateStaffDto } from './dto/associate-staff.dto';
 import { Service } from './entities/service.entity';
+import { StaffService } from './entities/staff-service.entity';
 
 @Injectable()
 export class ServicesService {
   constructor(
     @InjectRepository(Service)
     private readonly serviceRepository: Repository<Service>,
+    @InjectRepository(StaffService)
+    private readonly staffServiceRepository: Repository<StaffService>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     private readonly auditService: AuditService,
     private readonly settingsService: SettingsService,
   ) {}
@@ -126,6 +133,105 @@ export class ServicesService {
       reschedule_min_hours: service.reschedule_min_hours ?? globalSettings.reschedule_min_hours,
       max_reschedules: service.max_reschedules ?? globalSettings.max_reschedules,
     };
+  }
+
+  async associateStaff(
+    serviceId: string,
+    dto: AssociateStaffDto,
+    actor: AccessPrincipal,
+  ): Promise<void> {
+    const service = await this.serviceRepository.findOne({
+      where: { id: serviceId },
+    });
+
+    if (!service) {
+      throw new NotFoundException(`Service with ID ${serviceId} not found`);
+    }
+
+    const staffUsers = await this.userRepository.find({
+      where: {
+        id: In(dto.staff_ids),
+        role: UserRole.STAFF,
+        is_active: true,
+      },
+    });
+
+    if (staffUsers.length !== dto.staff_ids.length) {
+      throw new BadRequestException('One or more staff users not found or not active');
+    }
+
+    await this.staffServiceRepository.delete({ service_id: serviceId });
+
+    const staffServices = dto.staff_ids.map(staffId =>
+      this.staffServiceRepository.create({
+        staff_id: staffId,
+        service_id: serviceId,
+      }),
+    );
+
+    await this.staffServiceRepository.save(staffServices);
+
+    await this.auditService.record({
+      action: AuditAction.SERVICE_UPDATED,
+      actor_type: ActorType.USER,
+      actor_id: actor.id,
+      actor_email: actor.email,
+      actor_role: actor.role,
+      entity_type: 'service',
+      entity_id: serviceId,
+      previous_value: null,
+      new_value: { staff_ids: dto.staff_ids },
+      metadata: 'Staff association updated',
+    });
+  }
+
+  async getStaffForService(serviceId: string): Promise<User[]> {
+    const service = await this.serviceRepository.findOne({
+      where: { id: serviceId },
+    });
+
+    if (!service) {
+      throw new NotFoundException(`Service with ID ${serviceId} not found`);
+    }
+
+    const staffServices = await this.staffServiceRepository.find({
+      where: { service_id: serviceId },
+      relations: ['staff'],
+    });
+
+    return staffServices
+      .map(ss => ss.staff)
+      .filter(staff => staff.is_active);
+  }
+
+  async getServicesForStaff(staffId: string): Promise<ServiceResponseDto[]> {
+    const staff = await this.userRepository.findOne({
+      where: { id: staffId, role: UserRole.STAFF },
+    });
+
+    if (!staff) {
+      throw new NotFoundException('Staff member not found');
+    }
+
+    const staffServices = await this.staffServiceRepository.find({
+      where: { staff_id: staffId },
+      relations: ['service'],
+    });
+
+    return staffServices.map(ss => this.toResponse(ss.service));
+  }
+
+  async canStaffProvideService(staffId: string, serviceId: string): Promise<boolean> {
+    const staffService = await this.staffServiceRepository.findOne({
+      where: { staff_id: staffId, service_id: serviceId },
+      relations: ['staff', 'service'],
+    });
+
+    if (!staffService) {
+      return false;
+    }
+
+    return staffService.staff.is_active && staffService.service.is_active;
   }
 
   private toResponse(service: Service): ServiceResponseDto {
