@@ -22,6 +22,11 @@ import { AuthResponseDto } from './dto/auth-response.dto';
 import { CreateStaffInvitationDto } from './dto/create-staff-invitation.dto';
 import { AcceptStaffInvitationDto } from './dto/accept-staff-invitation.dto';
 import { StaffInvitationResponseDto, InvitationInfoDto } from './dto/staff-invitation-response.dto';
+import { MfaSetupResponseDto } from './dto/mfa-setup-response.dto';
+import { MfaRequiredResponseDto } from './dto/mfa-required-response.dto';
+import { EnableMfaDto } from './dto/enable-mfa.dto';
+import { VerifyMfaDto } from './dto/verify-mfa.dto';
+import { DisableMfaDto } from './dto/disable-mfa.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { CurrentUser, CurrentUserData } from './decorators/current-user.decorator';
@@ -51,14 +56,19 @@ export class AuthController {
   @ApiOperation({ summary: 'Login with email and password' })
   @ApiResponse({
     status: 200,
-    description: 'Login successful',
+    description: 'Login successful or MFA required',
     type: AuthResponseDto,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'MFA verification required',
+    type: MfaRequiredResponseDto,
   })
   @ApiResponse({ status: 401, description: 'Invalid credentials or account locked' })
   async login(
     @Body() loginDto: LoginDto,
     @Req() req: Request,
-  ): Promise<AuthResponseDto> {
+  ): Promise<AuthResponseDto | MfaRequiredResponseDto> {
     const userAgent = req.headers['user-agent'];
     const ipAddress = (req.headers['x-forwarded-for'] as string) || req.ip;
     
@@ -75,15 +85,24 @@ export class AuthController {
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
   @ApiOperation({ summary: 'Google OAuth callback' })
-  @ApiResponse({ status: 302, description: 'Redirect to client with tokens' })
+  @ApiResponse({ status: 302, description: 'Redirect to client with tokens or MFA page' })
   async googleAuthCallback(@Req() req: Request, @Res() res: Response) {
     const user = req.user as unknown as User;
-    const authResponse = await this.authService.generateAuthResponse(user);
+    const userAgent = req.headers['user-agent'];
+    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.ip;
+    
+    const authResponse = await this.authService.handleGoogleLogin(user, userAgent, ipAddress);
     
     const webOrigin = process.env.WEB_ORIGIN || 'http://localhost:3000';
-    const redirectUrl = `${webOrigin}/auth/callback?access_token=${authResponse.access_token}&refresh_token=${authResponse.refresh_token}`;
     
-    res.redirect(redirectUrl);
+    if ('mfa_required' in authResponse && authResponse.mfa_required) {
+      const redirectUrl = `${webOrigin}/auth/mfa?mfa_token=${authResponse.mfa_token}`;
+      res.redirect(redirectUrl);
+    } else {
+      const fullResponse = authResponse as AuthResponseDto;
+      const redirectUrl = `${webOrigin}/auth/callback?access_token=${fullResponse.access_token}&refresh_token=${fullResponse.refresh_token}`;
+      res.redirect(redirectUrl);
+    }
   }
 
   @Post('refresh')
@@ -229,5 +248,64 @@ export class AuthController {
       acceptInvitationDto.last_name,
       currentUserId,
     );
+  }
+
+  @Post('mfa/setup')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Setup MFA for administrator' })
+  @ApiResponse({
+    status: 200,
+    description: 'MFA setup information with QR code',
+    type: MfaSetupResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'MFA already enabled or user is not an administrator' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async setupMfa(@CurrentUser('userId') userId: string): Promise<MfaSetupResponseDto> {
+    return this.authService.setupMfa(userId);
+  }
+
+  @Post('mfa/enable')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Enable MFA with verification code' })
+  @ApiResponse({ status: 200, description: 'MFA enabled successfully' })
+  @ApiResponse({ status: 400, description: 'MFA setup not initiated or already enabled' })
+  @ApiResponse({ status: 401, description: 'Invalid MFA code or unauthorized' })
+  async enableMfa(
+    @CurrentUser('userId') userId: string,
+    @Body() enableMfaDto: EnableMfaDto,
+  ): Promise<{ message: string }> {
+    return this.authService.enableMfa(userId, enableMfaDto.code);
+  }
+
+  @Post('mfa/disable')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Disable MFA with verification code' })
+  @ApiResponse({ status: 200, description: 'MFA disabled successfully' })
+  @ApiResponse({ status: 400, description: 'MFA is not enabled' })
+  @ApiResponse({ status: 401, description: 'Invalid MFA code or unauthorized' })
+  async disableMfa(
+    @CurrentUser('userId') userId: string,
+    @Body() disableMfaDto: DisableMfaDto,
+  ): Promise<{ message: string }> {
+    return this.authService.disableMfa(userId, disableMfaDto.code);
+  }
+
+  @Post('mfa/verify')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiOperation({ summary: 'Verify MFA code and complete login' })
+  @ApiResponse({
+    status: 200,
+    description: 'MFA verified, login successful',
+    type: AuthResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'Invalid MFA code or token' })
+  async verifyMfa(@Body() verifyMfaDto: VerifyMfaDto): Promise<AuthResponseDto> {
+    return this.authService.verifyMfa(verifyMfaDto.mfa_token, verifyMfaDto.code);
   }
 }
