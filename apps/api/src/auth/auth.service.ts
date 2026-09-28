@@ -11,6 +11,8 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import { generateSecret, generateURI, verify } from 'otplib';
+import * as QRCode from 'qrcode';
 import { User, UserRole, AuthProvider } from './entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { PasswordResetToken } from './entities/password-reset-token.entity';
@@ -18,6 +20,8 @@ import { StaffInvitation } from './entities/staff-invitation.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
+import { MfaSetupResponseDto } from './dto/mfa-setup-response.dto';
+import { MfaRequiredResponseDto } from './dto/mfa-required-response.dto';
 import { EmailService } from '../email/email.service';
 import { StaffInvitationResponseDto, InvitationInfoDto } from './dto/staff-invitation-response.dto';
 
@@ -41,6 +45,7 @@ export class AuthService {
   private readonly REFRESH_TOKEN_EXPIRY_DAYS = 2;
   private readonly MAX_FAILED_ATTEMPTS = 5;
   private readonly LOCKOUT_DURATION_MINUTES = 15;
+  private readonly MFA_TOKEN_EXPIRY = '5m';
 
   constructor(
     @InjectRepository(User)
@@ -88,7 +93,7 @@ export class AuthService {
     return this.generateAuthResponse(user);
   }
 
-  async login(loginDto: LoginDto, deviceInfo?: string, ipAddress?: string): Promise<AuthResponseDto> {
+  async login(loginDto: LoginDto, deviceInfo?: string, ipAddress?: string): Promise<AuthResponseDto | MfaRequiredResponseDto> {
     const { email, password } = loginDto;
 
     const user = await this.userRepository.findOne({
@@ -117,6 +122,16 @@ export class AuthService {
     }
 
     await this.resetFailedAttempts(user);
+
+    if (user.mfa_enabled && user.mfa_secret && user.role === UserRole.ADMIN) {
+      const mfaToken = this.generateMfaToken(user.id, deviceInfo, ipAddress);
+      this.logger.log(`MFA required for user: ${user.email}`);
+      return {
+        mfa_required: true,
+        mfa_token: mfaToken,
+        email: user.email,
+      };
+    }
 
     this.logger.log(`User logged in: ${user.email}`);
 
@@ -195,8 +210,6 @@ export class AuthService {
     });
 
     await this.passwordResetTokenRepository.save(resetToken);
-
-    await this.emailService.sendPasswordResetEmail(user.email, token);
 
     this.logger.log(`Password reset requested for: ${user.email}`);
   }
@@ -364,6 +377,166 @@ export class AuthService {
     this.logger.log(`Google user created: ${user.email}`);
 
     return user;
+  }
+
+  async handleGoogleLogin(user: User, deviceInfo?: string, ipAddress?: string): Promise<AuthResponseDto | { mfa_required: boolean; mfa_token: string }> {
+    if (user.mfa_enabled && user.mfa_secret && user.role === UserRole.ADMIN) {
+      const mfaToken = this.generateMfaToken(user.id, deviceInfo, ipAddress);
+      this.logger.log(`MFA required for Google user: ${user.email}`);
+      return {
+        mfa_required: true,
+        mfa_token: mfaToken,
+      };
+    }
+
+    return this.generateAuthResponse(user, deviceInfo, ipAddress);
+  }
+
+  async setupMfa(userId: string): Promise<MfaSetupResponseDto> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (user.role !== UserRole.ADMIN) {
+      throw new BadRequestException('MFA is only available for administrators');
+    }
+
+    if (user.mfa_enabled) {
+      throw new BadRequestException('MFA is already enabled');
+    }
+
+    const secret = generateSecret();
+    const otpauth_url = generateURI({
+      label: user.email,
+      issuer: 'hy10',
+      secret,
+    });
+
+    const qr_code = await QRCode.toDataURL(otpauth_url);
+
+    user.mfa_secret = secret;
+    await this.userRepository.save(user);
+
+    this.logger.log(`MFA setup initiated for user: ${user.email}`);
+
+    return {
+      secret,
+      otpauth_url,
+      qr_code,
+    };
+  }
+
+  async enableMfa(userId: string, code: string): Promise<{ message: string }> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (!user.mfa_secret) {
+      throw new BadRequestException('MFA setup not initiated. Call setup endpoint first');
+    }
+
+    if (user.mfa_enabled) {
+      throw new BadRequestException('MFA is already enabled');
+    }
+
+    const isValid = await verify({
+      token: code,
+      secret: user.mfa_secret,
+    });
+
+    if (!isValid) {
+      throw new UnauthorizedException('Invalid MFA code');
+    }
+
+    user.mfa_enabled = true;
+    await this.userRepository.save(user);
+
+    this.logger.log(`MFA enabled for user: ${user.email}`);
+
+    return { message: 'MFA enabled successfully' };
+  }
+
+  async disableMfa(userId: string, code: string): Promise<{ message: string }> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (!user.mfa_enabled || !user.mfa_secret) {
+      throw new BadRequestException('MFA is not enabled');
+    }
+
+    const isValid = await verify({
+      token: code,
+      secret: user.mfa_secret,
+    });
+
+    if (!isValid) {
+      throw new UnauthorizedException('Invalid MFA code');
+    }
+
+    user.mfa_enabled = false;
+    user.mfa_secret = null;
+    await this.userRepository.save(user);
+
+    this.logger.log(`MFA disabled for user: ${user.email}`);
+
+    return { message: 'MFA disabled successfully' };
+  }
+
+  async verifyMfa(mfaToken: string, code: string): Promise<AuthResponseDto> {
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(mfaToken, {
+        issuer: 'hy10-api-mfa',
+        audience: 'hy10-web',
+      });
+    } catch (error) {
+      throw new UnauthorizedException('Invalid or expired MFA token');
+    }
+
+    const user = await this.userRepository.findOne({ where: { id: payload.sub } });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (!user.mfa_enabled || !user.mfa_secret) {
+      throw new UnauthorizedException('MFA is not enabled for this user');
+    }
+
+    const isValid = await verify({
+      token: code,
+      secret: user.mfa_secret,
+    });
+
+    if (!isValid) {
+      throw new UnauthorizedException('Invalid MFA code');
+    }
+
+    this.logger.log(`MFA verified for user: ${user.email}`);
+
+    return this.generateAuthResponse(user, payload.deviceInfo, payload.ipAddress);
+  }
+
+  private generateMfaToken(userId: string, deviceInfo?: string, ipAddress?: string): string {
+    const payload = {
+      sub: userId,
+      type: 'mfa',
+      deviceInfo,
+      ipAddress,
+    };
+
+    return this.jwtService.sign(payload, {
+      expiresIn: this.MFA_TOKEN_EXPIRY,
+      issuer: 'hy10-api-mfa',
+      audience: 'hy10-web',
+    });
   }
 
   async createStaffInvitation(
