@@ -7,6 +7,7 @@ import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { AccessModule } from './access/access.module';
 import { SettingsModule } from './settings/settings.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { SettingsModule } from './settings/settings.module';
       logging: process.env.NODE_ENV !== 'production',
       migrationsRun: false,
     }),
+    EmailModule,
     AuthModule,
     AccessModule,
     AuditModule,

@@ -17,6 +17,7 @@ import { PasswordResetToken } from './entities/password-reset-token.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
+import { EmailService } from '../email/email.service';
 
 import { GoogleProfile } from './interfaces/google-profile.interface';
 
@@ -48,6 +49,7 @@ export class AuthService {
     private passwordResetTokenRepository: Repository<PasswordResetToken>,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private emailService: EmailService,
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
@@ -189,6 +191,8 @@ export class AuthService {
     });
 
     await this.passwordResetTokenRepository.save(resetToken);
+
+    await this.emailService.sendPasswordResetEmail(user.email, token);
 
     this.logger.log(`Password reset requested for: ${user.email}`);
   }

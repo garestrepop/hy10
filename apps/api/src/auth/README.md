@@ -280,11 +280,40 @@ pnpm test auth.service.spec.ts
 6. **Token Rotation**: Refresh tokens are rotated on each use
 7. **Account Lockout**: Protects against brute force attacks
 
+## Password Reset Email
+
+The system sends password reset emails using the configured SMTP provider. The email includes:
+- A secure, single-use token valid for 1 hour
+- A direct link to reset the password
+- Clear security warnings
+- Responsive HTML template
+
+### Email Configuration
+
+Set these environment variables:
+
+```env
+MAIL_HOST=smtp.example.com
+MAIL_PORT=587
+MAIL_SECURE=false
+MAIL_USER=your-smtp-user
+MAIL_PASSWORD=your-smtp-password
+MAIL_FROM=noreply@hy10.app
+```
+
+For development, use [Mailtrap](https://mailtrap.io) to test emails safely without sending real messages.
+
+For production, use a transactional email service:
+- SendGrid
+- AWS SES
+- Postmark
+- Mailgun
+
 ## Future Enhancements
 
-- [ ] Email sending for password reset (currently just creates token)
 - [ ] MFA (Multi-Factor Authentication) for admins (US-04)
 - [ ] Email verification on registration
 - [ ] Session management UI
 - [ ] Security event logging
 - [ ] Apple OAuth support
+- [ ] Email template customization UI
