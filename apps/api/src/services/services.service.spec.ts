@@ -5,6 +5,8 @@ import { AuditService } from '../audit/audit.service';
 import { SettingsService } from '../settings/settings.service';
 import { ServicesService } from './services.service';
 import { Service } from './entities/service.entity';
+import { StaffService } from './entities/staff-service.entity';
+import { User } from '../auth/entities/user.entity';
 
 describe('US-08 Mantener los servicios', () => {
   let service: ServicesService;
@@ -19,6 +21,19 @@ describe('US-08 Mantener los servicios', () => {
     })),
     findOne: jest.fn(),
     createQueryBuilder: jest.fn(),
+  };
+
+  const staffServiceRepository = {
+    create: jest.fn(),
+    save: jest.fn(),
+    find: jest.fn(),
+    findOne: jest.fn(),
+    delete: jest.fn(),
+  };
+
+  const userRepository = {
+    find: jest.fn(),
+    findOne: jest.fn(),
   };
 
   const auditService = { record: jest.fn().mockResolvedValue(undefined) };
@@ -46,6 +61,8 @@ describe('US-08 Mantener los servicios', () => {
       providers: [
         ServicesService,
         { provide: getRepositoryToken(Service), useValue: repository },
+        { provide: getRepositoryToken(StaffService), useValue: staffServiceRepository },
+        { provide: getRepositoryToken(User), useValue: userRepository },
         { provide: AuditService, useValue: auditService },
         { provide: SettingsService, useValue: settingsService },
       ],
