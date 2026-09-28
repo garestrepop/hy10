@@ -19,6 +19,9 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
+import { CreateStaffInvitationDto } from './dto/create-staff-invitation.dto';
+import { AcceptStaffInvitationDto } from './dto/accept-staff-invitation.dto';
+import { StaffInvitationResponseDto, InvitationInfoDto } from './dto/staff-invitation-response.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { CurrentUser, CurrentUserData } from './decorators/current-user.decorator';
@@ -161,5 +164,70 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getCurrentUser(@CurrentUser() user: CurrentUserData) {
     return user;
+  }
+
+  @Post('invite-staff')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Invite a staff member (Admin only)' })
+  @ApiResponse({
+    status: 201,
+    description: 'Invitation created successfully',
+    type: StaffInvitationResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid input or user already has Staff role' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - Admin only' })
+  async inviteStaff(
+    @CurrentUser('userId') userId: string,
+    @Body() createInvitationDto: CreateStaffInvitationDto,
+  ): Promise<StaffInvitationResponseDto> {
+    return this.authService.createStaffInvitation(userId, createInvitationDto.email);
+  }
+
+  @Get('invitation/:token')
+  @ApiOperation({ summary: 'Get invitation information' })
+  @ApiResponse({
+    status: 200,
+    description: 'Invitation information',
+    type: InvitationInfoDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid token' })
+  async getInvitationInfo(@Req() req: Request): Promise<InvitationInfoDto> {
+    const token = req.params.token;
+    return this.authService.getInvitationInfo(token);
+  }
+
+  @Post('accept-invitation')
+  @ApiOperation({ summary: 'Accept a staff invitation' })
+  @ApiResponse({
+    status: 200,
+    description: 'Invitation accepted successfully',
+    type: AuthResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid, expired, or used token' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - wrong account' })
+  async acceptInvitation(
+    @Body() acceptInvitationDto: AcceptStaffInvitationDto,
+    @Req() req: Request,
+  ): Promise<AuthResponseDto> {
+    const authHeader = req.headers.authorization;
+    let currentUserId: string | undefined;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        const decoded = await this.authService['jwtService'].verify(token);
+        currentUserId = decoded.sub;
+      } catch (error) {
+      }
+    }
+
+    return this.authService.acceptStaffInvitation(
+      acceptInvitationDto.token,
+      acceptInvitationDto.password,
+      acceptInvitationDto.first_name,
+      acceptInvitationDto.last_name,
+      currentUserId,
+    );
   }
 }

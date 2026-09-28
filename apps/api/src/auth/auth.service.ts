@@ -14,9 +14,11 @@ import * as crypto from 'crypto';
 import { User, UserRole, AuthProvider } from './entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { PasswordResetToken } from './entities/password-reset-token.entity';
+import { StaffInvitation } from './entities/staff-invitation.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
+import { StaffInvitationResponseDto, InvitationInfoDto } from './dto/staff-invitation-response.dto';
 
 import { GoogleProfile } from './interfaces/google-profile.interface';
 
@@ -46,6 +48,8 @@ export class AuthService {
     private refreshTokenRepository: Repository<RefreshToken>,
     @InjectRepository(PasswordResetToken)
     private passwordResetTokenRepository: Repository<PasswordResetToken>,
+    @InjectRepository(StaffInvitation)
+    private staffInvitationRepository: Repository<StaffInvitation>,
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {}
@@ -356,5 +360,150 @@ export class AuthService {
     this.logger.log(`Google user created: ${user.email}`);
 
     return user;
+  }
+
+  async createStaffInvitation(
+    inviterUserId: string,
+    email: string,
+  ): Promise<StaffInvitationResponseDto> {
+    const inviter = await this.userRepository.findOne({
+      where: { id: inviterUserId },
+    });
+
+    if (!inviter || inviter.role !== UserRole.ADMIN) {
+      throw new UnauthorizedException('Only administrators can invite staff');
+    }
+
+    const normalizedEmail = email.toLowerCase();
+
+    const existingUser = await this.userRepository.findOne({
+      where: { email: normalizedEmail },
+    });
+
+    if (existingUser && existingUser.role === UserRole.STAFF) {
+      throw new BadRequestException('User already has Staff role');
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires_at = new Date();
+    expires_at.setDate(expires_at.getDate() + 7);
+
+    const invitation = this.staffInvitationRepository.create({
+      email: normalizedEmail,
+      token,
+      invited_by: inviterUserId,
+      expires_at,
+    });
+
+    await this.staffInvitationRepository.save(invitation);
+
+    this.logger.log(`Staff invitation created for ${normalizedEmail} by ${inviter.email}`);
+
+    return {
+      token,
+      email: normalizedEmail,
+      expires_at,
+      invited_by_email: inviter.email,
+    };
+  }
+
+  async getInvitationInfo(token: string): Promise<InvitationInfoDto> {
+    const invitation = await this.staffInvitationRepository.findOne({
+      where: { token },
+    });
+
+    if (!invitation) {
+      throw new BadRequestException('Invalid invitation token');
+    }
+
+    const existingUser = await this.userRepository.findOne({
+      where: { email: invitation.email },
+    });
+
+    const is_expired = invitation.expires_at < new Date();
+
+    return {
+      email: invitation.email,
+      email_exists: !!existingUser,
+      expires_at: invitation.expires_at,
+      is_expired,
+      is_used: invitation.is_used,
+    };
+  }
+
+  async acceptStaffInvitation(
+    token: string,
+    password?: string,
+    first_name?: string,
+    last_name?: string,
+    currentUserId?: string,
+  ): Promise<AuthResponseDto> {
+    const invitation = await this.staffInvitationRepository.findOne({
+      where: { token },
+    });
+
+    if (!invitation) {
+      throw new BadRequestException('Invalid invitation token');
+    }
+
+    if (invitation.is_used) {
+      throw new BadRequestException('Invitation token has already been used');
+    }
+
+    if (invitation.expires_at < new Date()) {
+      throw new BadRequestException('Invitation token has expired');
+    }
+
+    const normalizedEmail = invitation.email.toLowerCase();
+    let user = await this.userRepository.findOne({
+      where: { email: normalizedEmail },
+    });
+
+    if (user) {
+      if (currentUserId && currentUserId !== user.id) {
+        throw new UnauthorizedException(
+          'This invitation is for a different account. Please log out and log in with the invited email.',
+        );
+      }
+
+      if (user.role === UserRole.STAFF) {
+        throw new BadRequestException('User already has Staff role');
+      }
+
+      user.role = UserRole.STAFF;
+      await this.userRepository.save(user);
+
+      this.logger.log(`Staff role assigned to existing user: ${user.email}`);
+    } else {
+      if (!password) {
+        throw new BadRequestException('Password is required for new accounts');
+      }
+
+      this.validatePassword(password);
+
+      const password_hash = await bcrypt.hash(password, 10);
+
+      user = this.userRepository.create({
+        email: normalizedEmail,
+        password_hash,
+        auth_provider: AuthProvider.EMAIL,
+        role: UserRole.STAFF,
+        first_name,
+        last_name,
+        is_active: true,
+        email_verified: true,
+      });
+
+      await this.userRepository.save(user);
+
+      this.logger.log(`New Staff user created via invitation: ${user.email}`);
+    }
+
+    invitation.is_used = true;
+    invitation.used_at = new Date();
+    invitation.created_user_id = user.id;
+    await this.staffInvitationRepository.save(invitation);
+
+    return this.generateAuthResponse(user);
   }
 }
