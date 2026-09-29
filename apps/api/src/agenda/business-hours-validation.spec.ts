@@ -49,8 +49,7 @@ describe('AgendaService - US-27 Business Hours Validation', () => {
       end_time: '18:00',
       created_at: new Date(),
       updated_at: new Date(),
-      deleted_at: null,
-    },
+    } as BusinessHours,
     {
       id: 'bh-2',
       day_of_week: 2, // Tuesday
@@ -58,8 +57,7 @@ describe('AgendaService - US-27 Business Hours Validation', () => {
       end_time: '18:00',
       created_at: new Date(),
       updated_at: new Date(),
-      deleted_at: null,
-    },
+    } as BusinessHours,
   ];
 
   beforeEach(async () => {
@@ -178,7 +176,7 @@ describe('AgendaService - US-27 Business Hours Validation', () => {
     it('should accept a staff schedule block within business hours', async () => {
       jest.spyOn(businessHoursRepo, 'find').mockResolvedValue(mockBusinessHours);
       jest.spyOn(userRepo, 'findOne').mockResolvedValue(mockStaff);
-      jest.spyOn(scheduleBlockRepo, 'delete').mockResolvedValue(undefined);
+      jest.spyOn(scheduleBlockRepo, 'delete').mockResolvedValue({ affected: 1, raw: [] });
       jest.spyOn(scheduleBlockRepo, 'create').mockImplementation((block) => block as any);
       jest.spyOn(scheduleBlockRepo, 'save').mockImplementation((blocks) => Promise.resolve(blocks as any));
 
@@ -224,7 +222,7 @@ describe('AgendaService - US-27 Business Hours Validation', () => {
     it('should allow admin to edit any staff schedule', async () => {
       jest.spyOn(businessHoursRepo, 'find').mockResolvedValue(mockBusinessHours);
       jest.spyOn(userRepo, 'findOne').mockResolvedValue(mockStaff);
-      jest.spyOn(scheduleBlockRepo, 'delete').mockResolvedValue(undefined);
+      jest.spyOn(scheduleBlockRepo, 'delete').mockResolvedValue({ affected: 1, raw: [] });
       jest.spyOn(scheduleBlockRepo, 'create').mockImplementation((block) => block as any);
       jest.spyOn(scheduleBlockRepo, 'save').mockImplementation((blocks) => Promise.resolve(blocks as any));
 
@@ -357,12 +355,12 @@ describe('AgendaService - US-27 Business Hours Validation', () => {
         {
           id: 'block-1',
           staff_id: 'staff-id',
+          staff: mockStaff,
           day_of_week: 1, // Monday
           start_time: '08:00', // Starts before business hours
           end_time: '19:00', // Ends after business hours
           created_at: new Date(),
           updated_at: new Date(),
-          deleted_at: null,
         } as StaffScheduleBlock,
       ];
 
@@ -402,12 +400,12 @@ describe('AgendaService - US-27 Business Hours Validation', () => {
         {
           id: 'block-1',
           staff_id: 'staff-id',
+          staff: mockStaff,
           day_of_week: 0, // Sunday - no business hours
           start_time: '09:00',
           end_time: '17:00',
           created_at: new Date(),
           updated_at: new Date(),
-          deleted_at: null,
         } as StaffScheduleBlock,
       ];
 
@@ -430,7 +428,7 @@ describe('AgendaService - US-27 Business Hours Validation', () => {
 
   describe('Admin-only business hours management', () => {
     it('should allow admin to set business hours', async () => {
-      jest.spyOn(businessHoursRepo, 'delete').mockResolvedValue(undefined);
+      jest.spyOn(businessHoursRepo, 'delete').mockResolvedValue({ affected: 1, raw: [] });
       jest.spyOn(businessHoursRepo, 'create').mockImplementation((bh) => bh as any);
       jest.spyOn(businessHoursRepo, 'save').mockImplementation((hours) => Promise.resolve(hours as any));
 
