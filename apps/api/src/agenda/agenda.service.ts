@@ -136,6 +136,37 @@ export class AgendaService {
       throw new NotFoundException('Staff not found');
     }
 
+    if (dto.type === ExceptionType.OPENING) {
+      const businessHours = await this.getBusinessHours();
+      const exceptionDate = new Date(dto.date);
+      const dayOfWeek = exceptionDate.getDay();
+
+      const dayHours = businessHours.filter(
+        (bh) => bh.day_of_week === dayOfWeek,
+      );
+
+      if (dayHours.length === 0) {
+        throw new BadRequestException(
+          `No business hours defined for day ${dayOfWeek}`,
+        );
+      }
+
+      const exceptionStart = this.timeToMinutes(dto.start_time);
+      const exceptionEnd = this.timeToMinutes(dto.end_time);
+
+      const isWithinBusinessHours = dayHours.some((bh) => {
+        const bhStart = this.timeToMinutes(bh.start_time);
+        const bhEnd = this.timeToMinutes(bh.end_time);
+        return exceptionStart >= bhStart && exceptionEnd <= bhEnd;
+      });
+
+      if (!isWithinBusinessHours) {
+        throw new BadRequestException(
+          `Opening exception ${dto.start_time}-${dto.end_time} on ${dto.date} is outside business hours`,
+        );
+      }
+    }
+
     const exception = this.exceptionRepo.create(dto);
     return this.exceptionRepo.save(exception);
   }
@@ -226,6 +257,7 @@ export class AgendaService {
       });
     }
 
+    const businessHours = await this.getBusinessHours();
     const slots: SlotDto[] = [];
     const dateObj = new Date(date);
     const dayOfWeek = dateObj.getDay();
@@ -304,7 +336,24 @@ export class AgendaService {
       }
     }
 
-    return slots.sort((a, b) => a.start.localeCompare(b.start));
+    const dayBusinessHours = businessHours.filter(
+      (bh) => bh.day_of_week === dayOfWeek,
+    );
+
+    const filteredSlots = slots.filter((slot) => {
+      const slotTime = slot.start.split('T')[1].substring(0, 5);
+      const slotEndTime = slot.end.split('T')[1].substring(0, 5);
+      const slotStart = this.timeToMinutes(slotTime);
+      const slotEnd = this.timeToMinutes(slotEndTime);
+
+      return dayBusinessHours.some((bh) => {
+        const bhStart = this.timeToMinutes(bh.start_time);
+        const bhEnd = this.timeToMinutes(bh.end_time);
+        return slotStart >= bhStart && slotEnd <= bhEnd;
+      });
+    });
+
+    return filteredSlots.sort((a, b) => a.start.localeCompare(b.start));
   }
 
   async getOccupancy(
