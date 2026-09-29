@@ -1,87 +1,127 @@
 import {
   Controller,
-  Post,
   Get,
-  Delete,
+  Post,
   Body,
   Param,
+  Query,
   UseGuards,
-  HttpCode,
-  HttpStatus,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { AgendaService } from './agenda.service';
-import { JwtAuthGuard } from '../access/guards/jwt-auth.guard';
-import { CurrentUser } from '../access/current-user.decorator';
-import { AccessPrincipal } from '../access/access-token';
-import {
-  ReplaceScheduleDto,
-  ScheduleBlockResponseDto,
-} from './dto/schedule-block.dto';
-import {
-  CreateExceptionDto,
-  ExceptionResponseDto,
-} from './dto/schedule-exception.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { User, UserRole } from '../auth/entities/user.entity';
+import { AccessRole } from '../access/access-token';
+import { SetBusinessHoursDto } from './dto/business-hours.dto';
+import { ReplaceStaffScheduleDto } from './dto/schedule-block.dto';
+import { AddExceptionDto } from './dto/exception.dto';
+import { SlotDto } from './dto/availability.dto';
+import { OccupancyResponseDto } from './dto/occupancy.dto';
 
-@Controller('api/v1/staff')
-@UseGuards(JwtAuthGuard)
+@ApiTags('agenda')
+@Controller('agenda')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@ApiBearerAuth()
 export class AgendaController {
   constructor(private readonly agendaService: AgendaService) {}
 
-  @Post(':id/schedule')
-  @HttpCode(HttpStatus.OK)
-  async replaceSchedule(
-    @CurrentUser() actor: AccessPrincipal,
-    @Param('id') staffId: string,
-    @Body() replaceScheduleDto: ReplaceScheduleDto,
-  ): Promise<ScheduleBlockResponseDto[]> {
-    return this.agendaService.replaceStaffSchedule(
-      actor.id,
-      staffId,
-      replaceScheduleDto,
-    );
+  @Post('business-hours')
+  @Roles('admin')
+  @ApiOperation({ summary: 'Set business hours (Admin only)' })
+  @ApiResponse({ status: 200, description: 'Business hours updated' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async setBusinessHours(
+    @CurrentUser() user: User,
+    @Body() dto: SetBusinessHoursDto,
+  ) {
+    return this.agendaService.setBusinessHours(user, dto);
   }
 
-  @Get(':id/schedule')
-  async getSchedule(
-    @CurrentUser() actor: AccessPrincipal,
-    @Param('id') staffId: string,
-  ): Promise<ScheduleBlockResponseDto[]> {
-    return this.agendaService.getStaffSchedule(actor.id, staffId);
+  @Get('business-hours')
+  @ApiOperation({ summary: 'Get business hours' })
+  @ApiResponse({ status: 200, description: 'Business hours retrieved' })
+  async getBusinessHours() {
+    return this.agendaService.getBusinessHours();
   }
 
-  @Post(':id/exceptions')
-  @HttpCode(HttpStatus.CREATED)
+  @Post('staff/schedule')
+  @ApiOperation({ summary: 'Replace staff schedule blocks' })
+  @ApiResponse({ status: 200, description: 'Schedule updated' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Staff not found' })
+  async replaceStaffSchedule(
+    @CurrentUser() user: User,
+    @Body() dto: ReplaceStaffScheduleDto,
+  ) {
+    return this.agendaService.replaceStaffSchedule(user, dto);
+  }
+
+  @Post('staff/exception')
+  @ApiOperation({ summary: 'Add schedule exception for staff' })
+  @ApiResponse({ status: 201, description: 'Exception added' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Staff not found' })
   async addException(
-    @CurrentUser() actor: AccessPrincipal,
-    @Param('id') staffId: string,
-    @Body() createExceptionDto: CreateExceptionDto,
-  ): Promise<ExceptionResponseDto> {
-    return this.agendaService.addException(
-      actor.id,
-      staffId,
-      createExceptionDto,
-    );
+    @CurrentUser() user: User,
+    @Body() dto: AddExceptionDto,
+  ) {
+    return this.agendaService.addException(user, dto);
   }
 
-  @Get(':id/exceptions')
-  async getExceptions(
-    @CurrentUser() actor: AccessPrincipal,
-    @Param('id') staffId: string,
-  ): Promise<ExceptionResponseDto[]> {
-    return this.agendaService.getStaffExceptions(actor.id, staffId);
+  @Get('staff/:staffId/schedule')
+  @ApiOperation({ summary: 'Get staff schedule with blocks and exceptions' })
+  @ApiResponse({ status: 200, description: 'Schedule retrieved' })
+  @ApiResponse({ status: 404, description: 'Staff not found' })
+  async getStaffSchedule(@Param('staffId') staffId: string) {
+    return this.agendaService.getStaffSchedule(staffId);
   }
 
-  @Delete(':staffId/exceptions/:exceptionId')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  async deleteException(
-    @CurrentUser() actor: AccessPrincipal,
-    @Param('staffId') staffId: string,
-    @Param('exceptionId') exceptionId: string,
-  ): Promise<void> {
-    await this.agendaService.deleteException(
-      actor.id,
-      staffId,
-      exceptionId,
-    );
+  @Get('staff/schedules/all')
+  @Roles('admin')
+  @ApiOperation({ summary: 'Get all staff schedules (Admin only)' })
+  @ApiResponse({ status: 200, description: 'All schedules retrieved' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async getAllStaffSchedules() {
+    return this.agendaService.getAllStaffSchedules();
+  }
+
+  @Get('availability')
+  @ApiOperation({ summary: 'Get available time slots for a service' })
+  @ApiResponse({
+    status: 200,
+    description: 'Available slots retrieved',
+    type: [SlotDto],
+  })
+  @ApiResponse({ status: 404, description: 'Service or staff not found' })
+  async getAvailability(
+    @Query('service_id') serviceId: string,
+    @Query('date') date: string,
+    @Query('staff_id') staffId?: string,
+  ) {
+    return this.agendaService.getAvailability(serviceId, date, staffId);
+  }
+
+  @Get('occupancy')
+  @Roles('admin')
+  @ApiOperation({ summary: 'Get business occupancy metrics (Admin only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Occupancy data retrieved',
+    type: OccupancyResponseDto,
+  })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async getOccupancy(
+    @Query('start_date') startDate: string,
+    @Query('end_date') endDate: string,
+  ) {
+    return this.agendaService.getOccupancy(startDate, endDate);
   }
 }

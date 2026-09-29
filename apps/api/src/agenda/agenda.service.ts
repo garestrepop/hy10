@@ -5,281 +5,348 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { ScheduleBlock } from './entities/schedule-block.entity';
-import { ScheduleException } from './entities/schedule-exception.entity';
-import { Account, AccountRole } from '../access/entities/account.entity';
-import {
-  ReplaceScheduleDto,
-  ScheduleBlockResponseDto,
-} from './dto/schedule-block.dto';
-import {
-  CreateExceptionDto,
-  ExceptionResponseDto,
-} from './dto/schedule-exception.dto';
+import { Repository, Between, In } from 'typeorm';
+import { BusinessHours } from './entities/business-hours.entity';
+import { StaffScheduleBlock } from './entities/staff-schedule-block.entity';
+import { StaffException, ExceptionType } from './entities/staff-exception.entity';
+import { User, UserRole } from '../auth/entities/user.entity';
+import { Service } from '../services/entities/service.entity';
+import { StaffService } from '../services/entities/staff-service.entity';
+import { SetBusinessHoursDto } from './dto/business-hours.dto';
+import { ReplaceStaffScheduleDto } from './dto/schedule-block.dto';
+import { AddExceptionDto } from './dto/exception.dto';
+import { SlotDto } from './dto/availability.dto';
+import { OccupancyResponseDto, StaffOccupancyDto } from './dto/occupancy.dto';
 
 @Injectable()
 export class AgendaService {
   constructor(
-    @InjectRepository(ScheduleBlock)
-    private scheduleBlockRepository: Repository<ScheduleBlock>,
-    @InjectRepository(ScheduleException)
-    private scheduleExceptionRepository: Repository<ScheduleException>,
-    @InjectRepository(Account)
-    private accountRepository: Repository<Account>,
+    @InjectRepository(BusinessHours)
+    private businessHoursRepo: Repository<BusinessHours>,
+    @InjectRepository(StaffScheduleBlock)
+    private scheduleBlockRepo: Repository<StaffScheduleBlock>,
+    @InjectRepository(StaffException)
+    private exceptionRepo: Repository<StaffException>,
+    @InjectRepository(User)
+    private userRepo: Repository<User>,
+    @InjectRepository(Service)
+    private serviceRepo: Repository<Service>,
+    @InjectRepository(StaffService)
+    private staffServiceRepo: Repository<StaffService>,
   ) {}
 
-  async replaceStaffSchedule(
-    actorId: string,
-    targetStaffId: string,
-    replaceScheduleDto: ReplaceScheduleDto,
-  ): Promise<ScheduleBlockResponseDto[]> {
-    const actor = await this.accountRepository.findOne({
-      where: { id: actorId },
-    });
-
-    if (!actor) {
-      throw new NotFoundException('Actor not found');
+  async setBusinessHours(
+    actor: User,
+    dto: SetBusinessHoursDto,
+  ): Promise<BusinessHours[]> {
+    if (actor.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Only admins can set business hours');
     }
 
-    if (actor.role !== AccountRole.ADMIN && actorId !== targetStaffId) {
+    await this.businessHoursRepo.delete({});
+
+    const hours = dto.hours.map((h) => {
+      const entity = this.businessHoursRepo.create(h);
+      return entity;
+    });
+
+    return this.businessHoursRepo.save(hours);
+  }
+
+  async getBusinessHours(): Promise<BusinessHours[]> {
+    return this.businessHoursRepo.find({
+      order: { day_of_week: 'ASC', start_time: 'ASC' },
+    });
+  }
+
+  async replaceStaffSchedule(
+    actor: User,
+    dto: ReplaceStaffScheduleDto,
+  ): Promise<StaffScheduleBlock[]> {
+    if (actor.role !== UserRole.ADMIN && actor.id !== dto.staff_id) {
       throw new ForbiddenException(
-        'Staff can only edit their own availability',
+        'Staff can only edit their own schedule, admins can edit any',
       );
     }
 
-    const targetStaff = await this.accountRepository.findOne({
-      where: { id: targetStaffId },
+    const staff = await this.userRepo.findOne({
+      where: { id: dto.staff_id },
     });
 
-    if (!targetStaff) {
+    if (!staff) {
       throw new NotFoundException('Staff not found');
     }
 
-    if (targetStaff.role !== AccountRole.STAFF && targetStaff.role !== AccountRole.ADMIN) {
-      throw new BadRequestException('Target user is not a staff member');
+    const businessHours = await this.getBusinessHours();
+    
+    for (const block of dto.blocks) {
+      const dayHours = businessHours.filter(
+        (bh) => bh.day_of_week === block.day_of_week,
+      );
+
+      if (dayHours.length === 0) {
+        throw new BadRequestException(
+          `No business hours defined for day ${block.day_of_week}`,
+        );
+      }
+
+      const blockStart = this.timeToMinutes(block.start_time);
+      const blockEnd = this.timeToMinutes(block.end_time);
+
+      const isWithinBusinessHours = dayHours.some((bh) => {
+        const bhStart = this.timeToMinutes(bh.start_time);
+        const bhEnd = this.timeToMinutes(bh.end_time);
+        return blockStart >= bhStart && blockEnd <= bhEnd;
+      });
+
+      if (!isWithinBusinessHours) {
+        throw new BadRequestException(
+          `Block ${block.start_time}-${block.end_time} on day ${block.day_of_week} is outside business hours`,
+        );
+      }
     }
 
-    this.validateScheduleBlocks(replaceScheduleDto.blocks);
+    await this.scheduleBlockRepo.delete({ staff_id: dto.staff_id });
 
-    await this.scheduleBlockRepository.delete({ staff_id: targetStaffId });
+    const blocks = dto.blocks.map((b) =>
+      this.scheduleBlockRepo.create({
+        staff_id: dto.staff_id,
+        ...b,
+      }),
+    );
 
-    const blocks = replaceScheduleDto.blocks.map((block) => {
-      const scheduleBlock = new ScheduleBlock();
-      scheduleBlock.staff_id = targetStaffId;
-      scheduleBlock.day_of_week = block.day_of_week;
-      scheduleBlock.start_time = this.normalizeTime(block.start_time);
-      scheduleBlock.end_time = this.normalizeTime(block.end_time);
-      return scheduleBlock;
-    });
-
-    const savedBlocks = await this.scheduleBlockRepository.save(blocks);
-
-    return savedBlocks.map((block) => this.mapBlockToResponse(block));
+    return this.scheduleBlockRepo.save(blocks);
   }
 
   async addException(
-    actorId: string,
-    targetStaffId: string,
-    createExceptionDto: CreateExceptionDto,
-  ): Promise<ExceptionResponseDto> {
-    const actor = await this.accountRepository.findOne({
-      where: { id: actorId },
-    });
-
-    if (!actor) {
-      throw new NotFoundException('Actor not found');
-    }
-
-    if (actor.role !== AccountRole.ADMIN && actorId !== targetStaffId) {
+    actor: User,
+    dto: AddExceptionDto,
+  ): Promise<StaffException> {
+    if (actor.role !== UserRole.ADMIN && actor.id !== dto.staff_id) {
       throw new ForbiddenException(
-        'Staff can only edit their own availability',
+        'Staff can only add exceptions to their own schedule, admins can edit any',
       );
     }
 
-    const targetStaff = await this.accountRepository.findOne({
-      where: { id: targetStaffId },
+    const staff = await this.userRepo.findOne({
+      where: { id: dto.staff_id },
     });
 
-    if (!targetStaff) {
+    if (!staff) {
       throw new NotFoundException('Staff not found');
     }
 
-    if (targetStaff.role !== AccountRole.STAFF && targetStaff.role !== AccountRole.ADMIN) {
-      throw new BadRequestException('Target user is not a staff member');
-    }
-
-    this.validateException(createExceptionDto);
-
-    const exception = new ScheduleException();
-    exception.staff_id = targetStaffId;
-    exception.exception_type = createExceptionDto.exception_type;
-    exception.exception_date = createExceptionDto.exception_date;
-    exception.start_time = createExceptionDto.start_time
-      ? this.normalizeTime(createExceptionDto.start_time)
-      : null;
-    exception.end_time = createExceptionDto.end_time
-      ? this.normalizeTime(createExceptionDto.end_time)
-      : null;
-
-    const savedException =
-      await this.scheduleExceptionRepository.save(exception);
-
-    return this.mapExceptionToResponse(savedException);
+    const exception = this.exceptionRepo.create(dto);
+    return this.exceptionRepo.save(exception);
   }
 
   async getStaffSchedule(
-    actorId: string,
-    targetStaffId: string,
-  ): Promise<ScheduleBlockResponseDto[]> {
-    const actor = await this.accountRepository.findOne({
-      where: { id: actorId },
-    });
-
-    if (!actor) {
-      throw new NotFoundException('Actor not found');
-    }
-
-    if (actor.role !== AccountRole.ADMIN && actorId !== targetStaffId) {
-      throw new ForbiddenException('Staff can only view their own schedule');
-    }
-
-    const blocks = await this.scheduleBlockRepository.find({
-      where: { staff_id: targetStaffId },
+    staffId: string,
+  ): Promise<{ blocks: StaffScheduleBlock[]; exceptions: StaffException[] }> {
+    const blocks = await this.scheduleBlockRepo.find({
+      where: { staff_id: staffId },
       order: { day_of_week: 'ASC', start_time: 'ASC' },
     });
 
-    return blocks.map((block) => this.mapBlockToResponse(block));
+    const exceptions = await this.exceptionRepo.find({
+      where: { staff_id: staffId },
+      order: { date: 'ASC', start_time: 'ASC' },
+    });
+
+    return { blocks, exceptions };
   }
 
-  async getStaffExceptions(
-    actorId: string,
-    targetStaffId: string,
-  ): Promise<ExceptionResponseDto[]> {
-    const actor = await this.accountRepository.findOne({
-      where: { id: actorId },
+  async getAllStaffSchedules(): Promise<
+    Array<{
+      staff: User;
+      blocks: StaffScheduleBlock[];
+      exceptions: StaffException[];
+    }>
+  > {
+    const allStaff = await this.userRepo.find({
+      where: { role: UserRole.STAFF, is_active: true },
     });
 
-    if (!actor) {
-      throw new NotFoundException('Actor not found');
-    }
+    const schedules = await Promise.all(
+      allStaff.map(async (staff) => {
+        const { blocks, exceptions } = await this.getStaffSchedule(staff.id);
+        return { staff, blocks, exceptions };
+      }),
+    );
 
-    if (actor.role !== AccountRole.ADMIN && actorId !== targetStaffId) {
-      throw new ForbiddenException('Staff can only view their own exceptions');
-    }
-
-    const exceptions = await this.scheduleExceptionRepository.find({
-      where: { staff_id: targetStaffId },
-      order: { exception_date: 'ASC', start_time: 'ASC' },
-    });
-
-    return exceptions.map((exception) => this.mapExceptionToResponse(exception));
+    return schedules;
   }
 
-  async deleteException(
-    actorId: string,
-    targetStaffId: string,
-    exceptionId: string,
-  ): Promise<void> {
-    const actor = await this.accountRepository.findOne({
-      where: { id: actorId },
+  async getAvailability(
+    serviceId: string,
+    date: string,
+    staffId?: string,
+  ): Promise<SlotDto[]> {
+    const service = await this.serviceRepo.findOne({
+      where: { id: serviceId, is_active: true },
     });
 
-    if (!actor) {
-      throw new NotFoundException('Actor not found');
+    if (!service) {
+      throw new NotFoundException('Service not found or inactive');
     }
 
-    if (actor.role !== AccountRole.ADMIN && actorId !== targetStaffId) {
-      throw new ForbiddenException(
-        'Staff can only delete their own exceptions',
-      );
+    let eligibleStaff: User[];
+
+    if (staffId) {
+      const staff = await this.userRepo.findOne({
+        where: { id: staffId, is_active: true },
+      });
+
+      if (!staff) {
+        throw new NotFoundException('Staff not found or inactive');
+      }
+
+      const association = await this.staffServiceRepo.findOne({
+        where: { staff_id: staffId, service_id: serviceId },
+      });
+
+      if (!association) {
+        throw new BadRequestException('Staff not associated with this service');
+      }
+
+      eligibleStaff = [staff];
+    } else {
+      const associations = await this.staffServiceRepo.find({
+        where: { service_id: serviceId },
+      });
+
+      const staffIds = associations.map((a) => a.staff_id);
+
+      if (staffIds.length === 0) {
+        return [];
+      }
+
+      eligibleStaff = await this.userRepo.find({
+        where: { id: In(staffIds), is_active: true },
+      });
     }
 
-    const exception = await this.scheduleExceptionRepository.findOne({
-      where: { id: exceptionId, staff_id: targetStaffId },
-    });
+    const slots: SlotDto[] = [];
+    const dateObj = new Date(date);
+    const dayOfWeek = dateObj.getDay();
 
-    if (!exception) {
-      throw new NotFoundException('Exception not found');
-    }
+    for (const staff of eligibleStaff) {
+      const { blocks, exceptions } = await this.getStaffSchedule(staff.id);
 
-    await this.scheduleExceptionRepository.delete(exceptionId);
-  }
+      const dayBlocks = blocks.filter((b) => b.day_of_week === dayOfWeek);
 
-  private validateScheduleBlocks(blocks: any[]): void {
-    for (const block of blocks) {
-      const start = this.parseTime(block.start_time);
-      const end = this.parseTime(block.end_time);
+      const dateExceptions = exceptions.filter((e) => e.date === date);
 
-      if (start >= end) {
-        throw new BadRequestException(
-          `Invalid time range: ${block.start_time} to ${block.end_time}. Start time must be before end time.`,
+      for (const block of dayBlocks) {
+        const isBlocked = dateExceptions.some(
+          (e) => e.type === ExceptionType.BLOCK,
         );
+
+        if (!isBlocked) {
+          const blockStart = this.timeToMinutes(block.start_time);
+          const blockEnd = this.timeToMinutes(block.end_time);
+          const duration = service.duration_minutes;
+
+          for (
+            let time = blockStart;
+            time + duration <= blockEnd;
+            time += duration
+          ) {
+            const startTime = this.minutesToTime(time);
+            const endTime = this.minutesToTime(time + duration);
+
+            const startDateTime = `${date}T${startTime}:00-05:00`;
+            const endDateTime = `${date}T${endTime}:00-05:00`;
+
+            const staffName = staff.first_name && staff.last_name 
+              ? `${staff.first_name} ${staff.last_name}` 
+              : staff.email;
+
+            slots.push({
+              start: startDateTime,
+              end: endDateTime,
+              staff_id: staff.id,
+              staff_name: staffName,
+            });
+          }
+        }
+      }
+
+      for (const exception of dateExceptions) {
+        if (exception.type === ExceptionType.OPENING) {
+          const exStart = this.timeToMinutes(exception.start_time);
+          const exEnd = this.timeToMinutes(exception.end_time);
+          const duration = service.duration_minutes;
+
+          for (
+            let time = exStart;
+            time + duration <= exEnd;
+            time += duration
+          ) {
+            const startTime = this.minutesToTime(time);
+            const endTime = this.minutesToTime(time + duration);
+
+            const startDateTime = `${date}T${startTime}:00-05:00`;
+            const endDateTime = `${date}T${endTime}:00-05:00`;
+
+            const staffName = staff.first_name && staff.last_name 
+              ? `${staff.first_name} ${staff.last_name}` 
+              : staff.email;
+
+            slots.push({
+              start: startDateTime,
+              end: endDateTime,
+              staff_id: staff.id,
+              staff_name: staffName,
+            });
+          }
+        }
       }
     }
+
+    return slots.sort((a, b) => a.start.localeCompare(b.start));
   }
 
-  private validateException(exception: CreateExceptionDto): void {
-    if (
-      (exception.start_time && !exception.end_time) ||
-      (!exception.start_time && exception.end_time)
-    ) {
-      throw new BadRequestException(
-        'Both start_time and end_time must be provided together, or both omitted',
-      );
-    }
+  async getOccupancy(
+    startDate: string,
+    endDate: string,
+  ): Promise<OccupancyResponseDto> {
+    const allStaff = await this.userRepo.find({
+      where: { role: UserRole.STAFF, is_active: true },
+    });
 
-    if (exception.start_time && exception.end_time) {
-      const start = this.parseTime(exception.start_time);
-      const end = this.parseTime(exception.end_time);
+    const staffOccupancy: StaffOccupancyDto[] = allStaff.map((staff) => {
+      const staffName = staff.first_name && staff.last_name 
+        ? `${staff.first_name} ${staff.last_name}` 
+        : staff.email;
+      
+      return {
+        staff_id: staff.id,
+        staff_name: staffName,
+        total_appointments: 0,
+        upcoming_appointments: 0,
+        completed_appointments: 0,
+        total_hours: 0,
+      };
+    });
 
-      if (start >= end) {
-        throw new BadRequestException(
-          `Invalid time range: ${exception.start_time} to ${exception.end_time}. Start time must be before end time.`,
-        );
-      }
-    }
+    return {
+      start_date: startDate,
+      end_date: endDate,
+      total_appointments: 0,
+      total_revenue: 0,
+      staff_occupancy: staffOccupancy,
+    };
   }
 
-  private parseTime(timeStr: string): number {
-    const parts = timeStr.split(':');
-    const hours = parseInt(parts[0], 10);
-    const minutes = parseInt(parts[1], 10);
+  private timeToMinutes(time: string): number {
+    const [hours, minutes] = time.split(':').map(Number);
     return hours * 60 + minutes;
   }
 
-  private normalizeTime(timeStr: string): string {
-    const parts = timeStr.split(':');
-    if (parts.length === 2) {
-      return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}:00`;
-    }
-    return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}:${parts[2].padStart(2, '0')}`;
-  }
-
-  private mapBlockToResponse(block: ScheduleBlock): ScheduleBlockResponseDto {
-    return {
-      id: block.id,
-      staff_id: block.staff_id,
-      day_of_week: block.day_of_week,
-      start_time: block.start_time,
-      end_time: block.end_time,
-      created_at: block.created_at,
-      updated_at: block.updated_at,
-    };
-  }
-
-  private mapExceptionToResponse(
-    exception: ScheduleException,
-  ): ExceptionResponseDto {
-    return {
-      id: exception.id,
-      staff_id: exception.staff_id,
-      exception_type: exception.exception_type,
-      exception_date: exception.exception_date,
-      start_time: exception.start_time,
-      end_time: exception.end_time,
-      created_at: exception.created_at,
-      updated_at: exception.updated_at,
-    };
+  private minutesToTime(minutes: number): string {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
   }
 }

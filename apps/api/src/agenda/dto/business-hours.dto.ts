@@ -1,7 +1,7 @@
-import { IsInt, IsString, IsUUID, Min, Max, Matches } from 'class-validator';
+import { IsInt, IsString, Min, Max, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
-export class ScheduleBlockDto {
+export class BusinessHoursDto {
   @ApiProperty({
     description: 'Day of week (0=Sunday, 6=Saturday)',
     minimum: 0,
@@ -25,7 +25,7 @@ export class ScheduleBlockDto {
 
   @ApiProperty({
     description: 'End time in HH:mm format',
-    example: '17:00',
+    example: '18:00',
   })
   @IsString()
   @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, {
@@ -34,17 +34,10 @@ export class ScheduleBlockDto {
   end_time: string;
 }
 
-export class ReplaceStaffScheduleDto {
+export class SetBusinessHoursDto {
   @ApiProperty({
-    description: 'Staff user ID',
-    example: '123e4567-e89b-12d3-a456-426614174000',
+    description: 'Array of business hours blocks',
+    type: [BusinessHoursDto],
   })
-  @IsUUID()
-  staff_id: string;
-
-  @ApiProperty({
-    description: 'Array of schedule blocks',
-    type: [ScheduleBlockDto],
-  })
-  blocks: ScheduleBlockDto[];
+  hours: BusinessHoursDto[];
 }
