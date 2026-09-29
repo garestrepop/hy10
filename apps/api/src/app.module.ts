@@ -9,6 +9,7 @@ import { AccessModule } from './access/access.module';
 import { SettingsModule } from './settings/settings.module';
 import { EmailModule } from './email/email.module';
 import { ServicesModule } from './services/services.module';
+import { AgendaModule } from './agenda/agenda.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { ServicesModule } from './services/services.module';
     HealthModule,
     SettingsModule,
     ServicesModule,
+    AgendaModule,
   ],
 })
 export class AppModule {}
