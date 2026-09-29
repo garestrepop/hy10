@@ -1,36 +1,105 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# hy10 Web Dashboard
 
-## Getting Started
+Admin and Staff web application for managing schedules, appointments, and business operations.
 
-First, run the development server:
+## Stack
 
+- **Framework**: Next.js 16 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS 4
+- **Build**: Turbopack
+
+## Setup
+
+### Install Dependencies
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Environment Variables
+Create `.env.local` file:
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3001/api/v1
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Development
+```bash
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open [http://localhost:3000](http://localhost:3000)
 
-## Learn More
+### Build
+```bash
+npm run build
+npm start
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Features
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Dashboard (`/dashboard`)
+- View business occupancy metrics
+- Total appointments and revenue
+- Per-staff performance tracking
+- Date range: Last 30 days
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Schedules (`/schedules`)
+- View all staff schedules in grid layout
+- See weekly availability blocks
+- View active exceptions
+- Edit any staff schedule (admin)
 
-## Deploy on Vercel
+### Schedule Editor
+- Add/edit/remove weekly blocks
+- Configure day of week, start time, end time
+- Add schedule exceptions:
+  - **Block**: Mark unavailable time (vacation, day off)
+  - **Opening**: Add extra availability
+- Optional reason for exceptions
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Project Structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+apps/web/
+├── app/
+│   ├── dashboard/          # Occupancy dashboard
+│   ├── schedules/          # Staff schedules
+│   ├── layout.tsx          # Root layout with nav
+│   ├── page.tsx            # Home page
+│   └── globals.css         # Global styles
+├── components/
+│   └── schedule-editor.tsx # Schedule editing UI
+├── lib/
+│   └── api-client.ts       # Backend API client
+└── public/                 # Static assets
+```
+
+## API Integration
+
+The app communicates with the hy10 API at `/api/v1/agenda`:
+
+- `GET /occupancy` - Business metrics
+- `GET /staff/schedules/all` - All staff schedules
+- `POST /staff/schedule` - Update schedule blocks
+- `POST /staff/exception` - Add exception
+
+## Authorization
+
+Some features require authentication:
+- Dashboard viewing: Admin only
+- View all schedules: Admin only
+- Edit own schedule: Staff
+- Edit any schedule: Admin only
+
+Pass JWT token in Authorization header:
+```typescript
+headers: {
+  Authorization: `Bearer ${token}`
+}
+```
+
+## Related Documentation
+
+- Implementation Guide: `/workspace/US-11-IMPLEMENTATION-GUIDE.md`
+- Linear Issue: HY1-34
+- Backend API: `/workspace/apps/api`
