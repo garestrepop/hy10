@@ -38,7 +38,7 @@ export class StaffInvitation {
   @Column({ type: 'timestamp', nullable: true })
   used_at: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   created_user_id: string | null;
 
   @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })

@@ -28,7 +28,7 @@ export class Account {
   @Column({ unique: true })
   email: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   password_hash: string | null;
 
   @Column({
@@ -44,22 +44,22 @@ export class Account {
   })
   provider: AuthProvider;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   provider_id: string | null;
 
   @Column({ default: false })
   mfa_enabled: boolean;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   mfa_secret: string | null;
 
   @Column({ default: true })
   is_active: boolean;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   last_login_at: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   telegram_user_id: string | null;
 
   @OneToMany(() => RefreshToken, (token) => token.account)
