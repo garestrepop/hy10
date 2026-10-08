@@ -9,7 +9,7 @@ import {
 } from 'typeorm';
 import { Account } from './account.entity';
 
-@Entity('refresh_tokens')
+@Entity('account_refresh_tokens')
 @Index(['token_hash'], { unique: true })
 @Index(['account_id', 'is_revoked'])
 export class RefreshToken {
@@ -35,7 +35,7 @@ export class RefreshToken {
   @Column({ type: 'timestamptz', nullable: true })
   revoked_at: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   ip_address: string | null;
 
   @Column({ type: 'text', nullable: true })

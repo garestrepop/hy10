@@ -32,10 +32,10 @@ export class RefreshToken {
   @Column({ default: false })
   is_revoked: boolean;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   device_info: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   ip_address: string | null;
 
   @CreateDateColumn()

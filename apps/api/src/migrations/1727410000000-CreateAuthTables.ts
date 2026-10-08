@@ -89,7 +89,7 @@ export class CreateAuthTables1727410000000 implements MigrationInterface {
 
     await queryRunner.createTable(
       new Table({
-        name: 'refresh_tokens',
+        name: 'account_refresh_tokens',
         columns: [
           {
             name: 'id',
@@ -141,7 +141,7 @@ export class CreateAuthTables1727410000000 implements MigrationInterface {
     );
 
     await queryRunner.createIndex(
-      'refresh_tokens',
+      'account_refresh_tokens',
       new TableIndex({
         name: 'IDX_refresh_tokens_token_hash',
         columnNames: ['token_hash'],
@@ -150,7 +150,7 @@ export class CreateAuthTables1727410000000 implements MigrationInterface {
     );
 
     await queryRunner.createIndex(
-      'refresh_tokens',
+      'account_refresh_tokens',
       new TableIndex({
         name: 'IDX_refresh_tokens_account_revoked',
         columnNames: ['account_id', 'is_revoked'],
@@ -158,7 +158,7 @@ export class CreateAuthTables1727410000000 implements MigrationInterface {
     );
 
     await queryRunner.createForeignKey(
-      'refresh_tokens',
+      'account_refresh_tokens',
       new TableForeignKey({
         columnNames: ['account_id'],
         referencedColumnNames: ['id'],
@@ -169,17 +169,17 @@ export class CreateAuthTables1727410000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    const table = await queryRunner.getTable('refresh_tokens');
+    const table = await queryRunner.getTable('account_refresh_tokens');
     if (table) {
       const foreignKey = table.foreignKeys.find(
         (fk) => fk.columnNames.indexOf('account_id') !== -1,
       );
       if (foreignKey) {
-        await queryRunner.dropForeignKey('refresh_tokens', foreignKey);
+        await queryRunner.dropForeignKey('account_refresh_tokens', foreignKey);
       }
     }
 
-    await queryRunner.dropTable('refresh_tokens');
+    await queryRunner.dropTable('account_refresh_tokens');
     await queryRunner.dropTable('accounts');
   }
 }
